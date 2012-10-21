@@ -16,6 +16,7 @@ from .cgs import *
 from .imperial import *
 from .equivalencies import *
 from .physical import *
+from .quantity import *
 
 # After importing the unit definitions above, set the unit namespace
 # to this top-level module so that new units are added here.
