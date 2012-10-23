@@ -208,6 +208,21 @@ class Quantity(object):
     
     def __repr__(self):
         return "<Quantity value: {0:g} unit: {1:s}>".format(self.value, self.unit.to_string())
-        
+
+    def _repr_latex_(self):
+        """
+        Generate latex representation of unit name.  This is used by
+        the IPython notebook to print a unit with a nice layout.
+
+        Returns
+        -------
+        Latex string
+        """
+        latex_value = "{0}".format(self.value)
+        if "e" in latex_value:
+            latex_value = latex_value.replace('e', '\\times 10^{') + '}'
+        return "$" + latex_value + '$ ' + self.unit._repr_latex_()
+
+
 class IncompatibleUnitsError(Exception):
     pass
