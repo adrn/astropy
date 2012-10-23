@@ -218,7 +218,7 @@ class Quantity(object):
         -------
         Latex string
         """
-        latex_value = "{0}".format(self.value)
+        latex_value = "{0:g}".format(self.value)
         if "e" in latex_value:
             latex_value = latex_value.replace('e', '\\times 10^{') + '}'
         return "$" + latex_value + '$ ' + self.unit._repr_latex_()
