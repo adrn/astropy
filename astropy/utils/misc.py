@@ -212,7 +212,7 @@ def isiterable(obj):
         return True
 
     try:
-        iter(obj)
+        iter(obj).next()
         return True
     except TypeError:
         return False
