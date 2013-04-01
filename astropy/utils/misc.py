@@ -212,6 +212,9 @@ def isiterable(obj):
         return True
 
     try:
+        # Call next because any object with __getitem__() will return an 
+        #   iterator, even if a subsequent call to the iterator fails. This
+        #   is a problem for Quantity in particular.
         iter(obj).next()
         return True
     except TypeError:
