@@ -129,8 +129,7 @@ class Gaussian2DModel(ParametricModel):
         A 2x2 covariance matrix. If specified, overrides stddev, fwhm, and 
         theta specification.
     """
-    param_names = ['amplitude', 'x_mean', 'y_mean', \
-                   'x_stddev', 'y_stddev', 'theta']
+    param_names = ['amplitude', 'x_stddev', 'y_stddev', 'x_mean', 'y_mean',  'theta']
     
     def __init__(self, amplitude, x_mean, y_mean, x_fwhm=None, y_fwhm=None, 
                  x_stddev=None, y_stddev=None, theta=0.0, cov_matrix=None,
