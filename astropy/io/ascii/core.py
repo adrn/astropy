@@ -679,12 +679,17 @@ class BaseOutputter(object):
                     converter_func, converter_type = col.converters[0]
                     if not issubclass(converter_type, col.type):
                         raise TypeError()
+                    
                     col.data = converter_func(col.str_vals)
                     col.type = converter_type
                 except (TypeError, ValueError):
                     col.converters.pop(0)
                 except IndexError:
                     raise ValueError('Column %s failed to convert' % col.name)
+                except:
+                    print("Error converting column '{0}' data to type '{1}'"\
+                          .format(col.name, converter_type))
+                    raise
 
 
 class TableOutputter(BaseOutputter):
