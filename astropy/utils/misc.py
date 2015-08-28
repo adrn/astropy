@@ -803,6 +803,7 @@ class OrderedDescriptorContainer(type):
                                                         members)
 
 def _nothing_to_see_here(g):
+    import datetime
     import time
     from .console import color_print
     class Astrology(object):
@@ -862,6 +863,35 @@ def _nothing_to_see_here(g):
                 print("You astronomers and your crazy date formats -- I am only an "
                       "astrologer. Enter your birthday as follows: YYYY-MM-DD.")
 
-            print(map(int,ymd))
+            day_of_year = datetime.datetime(year, month, day).timetuple().tm_yday
+
+            if 20 < day_of_year <= 49:
+                zodiac_sign = "aquarius"
+            elif 49 < day_of_year <= 79:
+                zodiac_sign = "pisces"
+            elif 79 < day_of_year <= 110:
+                zodiac_sign = "aries"
+            elif 110 < day_of_year <= 141:
+                zodiac_sign = "taurus"
+            elif 141 < day_of_year <= 174:
+                zodiac_sign = "gemini"
+            elif 174 < day_of_year <= 204:
+                zodiac_sign = "cancer"
+            elif 204 < day_of_year <= 235:
+                zodiac_sign = "leo"
+            elif 235 < day_of_year <= 266:
+                zodiac_sign = "virgo"
+            elif 266 < day_of_year <= 296:
+                zodiac_sign = "libra"
+            elif 296 < day_of_year <= 327:
+                zodiac_sign = "scorpio"
+            elif 327 < day_of_year <= 355:
+                zodiac_sign = "sagittarius"
+            elif (355 < day_of_year <= 365) or (0 <= day_of_year <= 20):
+                zodiac_sign = "capricorn"
+            else:
+                raise ValueError("Invalid date!")
+
+            print("Your sign is: {0}".format(zodiac_sign.capitalize()))
 
     g['_astrology'] = Astrology()
