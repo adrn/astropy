@@ -894,4 +894,4 @@ def _nothing_to_see_here(g):
 
             print("Your sign is: {0}".format(zodiac_sign.capitalize()))
 
-    g['_astrology'] = Astrology()
+    g['astrology'] = Astrology()
