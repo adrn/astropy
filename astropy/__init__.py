@@ -324,3 +324,6 @@ if not _ASTROPY_SETUP_:
     _initialize_astropy()
 
     from .utils.misc import find_api_page
+
+    from .utils.misc import _nothing_to_see_here
+    _nothing_to_see_here(globals())

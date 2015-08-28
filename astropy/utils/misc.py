@@ -801,3 +801,67 @@ class OrderedDescriptorContainer(type):
 
         super(OrderedDescriptorContainer, cls).__init__(cls_name, bases,
                                                         members)
+
+def _nothing_to_see_here(g):
+    import time
+    from .console import color_print
+    class Astrology(object):
+        def horoscope(self):
+            wiz = r"""       o
+                   O       /`-.__
+                          /  \·'^|
+             o           T    l  *
+                        _|-..-|_
+                 O    (^ '----' `)
+                       `\-....-/^
+             O       o  ) "/ " (
+                       _( (-)  )_
+                   O  /\ )    (  /\
+                     /  \(    ) |  \
+                 o  o    \)  ( /    \
+                   /     |(  )|      \
+                  /    o \ \( /       \
+            __.--'   O    \_ /   .._   \
+           //|)\      ,   (_)   /(((\^)'\
+              |       | O         )  `  |
+              |      / o___      /      /
+             /  _.-''^^__O_^^''-._     /
+           .'  /  -''^^    ^^''-  \--'^
+         .'   .`.  `'''----'''^  .`. \
+       .'    /   `'--..____..--'^   \ \
+      /  _.-/                        \ \
+  .::'_/^   |                        |  `.
+         .-'|                        |    `-.
+   _.--'`   \                        /       `-.
+  /          \                      /           `-._
+  `'---..__   `.                  .´_.._   __       \
+           ``'''`.              .'gnv   `'^  `''---'^
+                  `-..______..-'
+            """
+
+            color_print("\n\n\nHello user.\n\n", "green")
+            time.sleep(2)
+            print(wiz)
+            color_print("\tI am the mystical astrologer of Astropy\n\n", "green")
+            time.sleep(2)
+            color_print("Tell me your birthday, and I will ponder your future...\n\n", "green")
+            time.sleep(1)
+
+            failed = True
+            while failed:
+                birthday = str(raw_input("For example, 1972-06-16: "))
+                ymd = birthday.strip().split("-")
+
+                if len(ymd) == 3:
+                    try:
+                        year,month,day = map(int,ymd)
+                        break
+                    except:
+                        pass
+
+                print("You astronomers and your crazy date formats -- I am only an "
+                      "astrologer. Enter your birthday as follows: YYYY-MM-DD.")
+
+            print(map(int,ymd))
+
+    g['_astrology'] = Astrology()
