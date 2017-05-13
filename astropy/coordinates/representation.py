@@ -333,7 +333,6 @@ class RepresentationBase(ShapedLikeNDArray):
         prefixstr = '    '
         arrstr = _array2string(self._values, prefix=prefixstr)
 
-
         unitstr = ('in ' + self._unitstr) if self._unitstr else '[dimensionless]'
         return '<{0} ({1}) {2:s}\n{3}{4}>'.format(
             self.__class__.__name__, ', '.join(self.components),
@@ -418,6 +417,26 @@ class BaseRepresentation(RepresentationBase):
 
     recommended_units = {}  # subclasses can override
 
+    def __init__(self, *args, **kwargs):
+
+        # Define a placeholder attribute
+        self._diff = None
+
+        super(BaseRepresentation, self).__init__(*args, **kwargs)
+
+    @property
+    def diff(self):
+        return self._diff
+
+    @diff.setter
+    def diff(self, value):
+        if not issubclass(value.__class__, BaseDifferential):
+            raise TypeError('Stored differential must be an instance of a '
+                            'BaseDifferential subclass, e.g., a '
+                            'CartesianDifferential instance.')
+
+        self._diff = value
+
     def represent_as(self, other_class):
         """Convert coordinates to another representation.
 
@@ -429,6 +448,7 @@ class BaseRepresentation(RepresentationBase):
         other_class : `~astropy.coordinates.BaseRepresentation` subclass
             The type of representation to turn the coordinates into.
         """
+
         if other_class is self.__class__:
             return self
         else:
@@ -937,14 +957,16 @@ class UnitSphericalRepresentation(BaseRepresentation):
     def represent_as(self, other_class):
         # Take a short cut if the other class is a spherical representation
         if issubclass(other_class, PhysicsSphericalRepresentation):
-            return other_class(phi=self.lon, theta=90 * u.deg - self.lat, r=1.0,
-                               copy=False)
+            other = other_class(phi=self.lon, theta=90 * u.deg - self.lat, r=1.0,
+                                copy=False)
         elif issubclass(other_class, SphericalRepresentation):
-            return other_class(lon=self.lon, lat=self.lat, distance=1.0,
-                               copy=False)
+            other = other_class(lon=self.lon, lat=self.lat, distance=1.0,
+                                copy=False)
         else:
-            return super(UnitSphericalRepresentation,
-                         self).represent_as(other_class)
+            other = super(UnitSphericalRepresentation,
+                          self).represent_as(other_class)
+
+        return other
 
     def __mul__(self, other):
         return self._dimensional_representation(lon=self.lon, lat=self.lat,
@@ -1193,13 +1215,15 @@ class SphericalRepresentation(BaseRepresentation):
     def represent_as(self, other_class):
         # Take a short cut if the other class is a spherical representation
         if issubclass(other_class, PhysicsSphericalRepresentation):
-            return other_class(phi=self.lon, theta=90 * u.deg - self.lat,
-                               r=self.distance, copy=False)
+            other = other_class(phi=self.lon, theta=90 * u.deg - self.lat,
+                                r=self.distance, copy=False)
         elif issubclass(other_class, UnitSphericalRepresentation):
-            return other_class(lon=self.lon, lat=self.lat, copy=False)
+            other = other_class(lon=self.lon, lat=self.lat, copy=False)
         else:
-            return super(SphericalRepresentation,
-                         self).represent_as(other_class)
+            other = super(SphericalRepresentation,
+                          self).represent_as(other_class)
+
+        return other
 
     def to_cartesian(self):
         """
@@ -1354,12 +1378,15 @@ class PhysicsSphericalRepresentation(BaseRepresentation):
     def represent_as(self, other_class):
         # Take a short cut if the other class is a spherical representation
         if issubclass(other_class, SphericalRepresentation):
-            return other_class(lon=self.phi, lat=90 * u.deg - self.theta,
-                               distance=self.r)
+            other = other_class(lon=self.phi, lat=90 * u.deg - self.theta,
+                                distance=self.r)
         elif issubclass(other_class, UnitSphericalRepresentation):
-            return other_class(lon=self.phi, lat=90 * u.deg - self.theta)
+            other = other_class(lon=self.phi, lat=90 * u.deg - self.theta)
         else:
-            return super(PhysicsSphericalRepresentation, self).represent_as(other_class)
+            other = super(PhysicsSphericalRepresentation,
+                          self).represent_as(other_class)
+
+        return other
 
     def to_cartesian(self):
         """
@@ -1660,9 +1687,11 @@ class BaseDifferential(RepresentationBase):
         self_cartesian = self.to_cartesian(base)
         if issubclass(other_class, BaseDifferential):
             base = base.represent_as(other_class.base_representation)
-            return other_class.from_cartesian(self_cartesian, base)
+            other = other_class.from_cartesian(self_cartesian, base)
         else:
-            return other_class.from_cartesian(self_cartesian)
+            other = other_class.from_cartesian(self_cartesian)
+
+        return other
 
     @classmethod
     def from_representation(cls, representation, base):
@@ -1804,9 +1833,12 @@ class CartesianDifferential(BaseDifferential):
                 self._d_x.unit.is_equivalent(self._d_z.unit)):
             raise u.UnitsError('d_x, d_y and d_z should have equivalent units.')
 
+    # TODO: should this return self instead?
     def to_cartesian(self, base=None):
         return CartesianRepresentation(*[getattr(self, c) for c
                                          in self.components])
+    # def to_cartesian(self, base=None):
+    #     return self
 
     @classmethod
     def from_cartesian(cls, other, base=None):
