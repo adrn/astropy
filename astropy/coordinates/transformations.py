@@ -771,9 +771,20 @@ class AffineTransform(CoordinateTransform):
         rep = fromcoord.represent_as(CartesianRepresentation)
         newrep = rep.transform(matrix)
 
+        if rep._diff is not None:
+            newdiff = rep._diff.represent_as(CartesianRepresentation, base=fromcoord.data)\
+                               .transform(matrix)
+        else:
+            newdiff = None
+
         if vector is not None:
-            # TODO: something
-            pass
+            # HACK: handle velocities here
+            pos_offset = CartesianRepresentation(vector[0])
+            newrep = newrep + pos_offset
+
+            if newdiff is not None:
+                vel_offset = CartesianRepresentation(vector[1])
+                newrep._diff = newdiff + vel_offset
 
         if issubclass(fromcoord.data.__class__, UnitSphericalRepresentation):
             # need to special-case this because otherwise the new class will

@@ -30,7 +30,8 @@ from .transformations import TransformGraph
 from .representation import (BaseRepresentation, CartesianRepresentation,
                              SphericalRepresentation,
                              UnitSphericalRepresentation,
-                             REPRESENTATION_CLASSES)
+                             REPRESENTATION_CLASSES,
+                             DIFFERENTIAL_CLASSES)
 
 
 __all__ = ['BaseCoordinateFrame', 'frame_transform_graph', 'GenericFrame',
@@ -923,8 +924,8 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
         """
         new_representation = _get_repr_cls(new_representation)
 
-        cached_repr = self.cache['representation'].get((new_representation.__name__,
-                                                        in_frame_units))
+        cache_key = (new_representation.__name__, in_frame_units)
+        cached_repr = self.cache['representation'].get(cache_key)
         if not cached_repr:
             data = self.data.represent_as(new_representation)
 
@@ -939,9 +940,14 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
                         datakwargs[comp] = datakwargs[comp].to(new_attr_unit)
                 data = data.__class__(copy=False, **datakwargs)
 
-            self.cache['representation'][new_representation.__name__, in_frame_units] = data
+            if self.data._diff is not None:
+                DiffCls = DIFFERENTIAL_CLASSES[new_representation.get_name()]
+                data.diff = self.data._diff.represent_as(DiffCls,
+                                                         base=self.data)
 
-        return self.cache['representation'][new_representation.__name__, in_frame_units]
+            self.cache['representation'][cache_key] = data
+
+        return self.cache['representation'][cache_key]
 
     def transform_to(self, new_frame):
         """
