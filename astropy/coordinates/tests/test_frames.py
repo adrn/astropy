@@ -114,6 +114,24 @@ def test_create_data_frames():
     with pytest.raises(AttributeError):
         i1.ra = [11.]*u.deg
 
+def test_create_data_frames_with_diff():
+    from ..builtin_frames import ICRS
+
+    # from repr
+    sph = representation.SphericalRepresentation(1*u.deg, 2*u.deg, 3*u.kpc)
+    vsph = representation.SphericalDifferential(1*u.mas/u.yr,
+                                                2*u.mas/u.yr,
+                                                3*u.kpc/u.Myr)
+    icrs = ICRS(sph)
+    icrs.data.diff = vsph
+
+    cart1 = icrs.data.represent_as(representation.CartesianRepresentation)
+    assert cart1._diff is None
+
+    cart2 = icrs.represent_as(representation.CartesianRepresentation)
+    assert cart2._diff is not None
+
+    # TODO: add some tests of diff content here...
 
 def test_create_orderered_data():
     from ..builtin_frames import ICRS, Galactic, AltAz
