@@ -1002,7 +1002,7 @@ class CartesianRepresentation(BaseRepresentation):
     def to_cartesian(self):
         return self
 
-    def transform(self, matrix):
+    def transform(self, matrix, apply_to_diffs=False):
         """
         Transform the cartesian coordinates using a 3x3 matrix.
 
@@ -1012,6 +1012,10 @@ class CartesianRepresentation(BaseRepresentation):
         ----------
         matrix : `~numpy.ndarray`
             A 3x3 transformation matrix, such as a rotation matrix.
+        apply_to_diffs : bool (optional)
+            Apply the transformation to any differentials associated with this
+            representation.
+
 
         Examples
         --------
@@ -1064,7 +1068,6 @@ class CartesianRepresentation(BaseRepresentation):
             # remaining dimensions.
             newxyz = np.einsum('...ij,j...->i...', matrix, oldxyz.value)
 
-        newxyz = u.Quantity(newxyz, oldxyz.unit, copy=False)
         # Handle differentials attached to this representation
         if self.differentials:
             # TODO: speed this up going via d.d_xyz.
