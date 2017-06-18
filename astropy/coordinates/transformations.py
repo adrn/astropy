@@ -785,7 +785,7 @@ class BaseAffineTransform(CoordinateTransform):
             newrep = newrep.with_differentials(
                 veldiff.represent_as(rep.differentials['s'].__class__, newrep))
 
-        elif len(rep.differentials) > 1:
+        elif len(rep.differentials) > 0:
             # We should never get here because the frame initializer sholdn't
             # allow more differentials, but this just adds protection for
             # subclasses that somehow skip the checks
