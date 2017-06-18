@@ -270,18 +270,15 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
                     'other positional arguments')
 
             if representation_data is not None:
-                n_diffs = len(representation_data.differentials)
-
-                if n_diffs > 0:
-                    if n_diffs > 1:
-                        warnings.warn('Multiple differentials are associated '
-                                      'with the representation object passed in'
-                                      ' to the frame initializer. The velocity '
-                                      'differential is assumed to be at index 0 '
-                                      'of the differentials list.',
-                                      AstropyWarning)
-
-                    differential_data = representation_data.differentials[0]
+                diffs = representation_data.differentials
+                differential_data = diffs.get('s', None)
+                if ((differential_data is None and len(diffs) > 0) or
+                        (differential_data is not None and len(diffs) > 1)):
+                    raise ValueError('Multiple differentials are associated '
+                                     'with the representation object passed in '
+                                     'to the frame initializer. Only a single '
+                                     'velocity differential is supported. Got: '
+                                     '{0}'.format(diffs))
 
         elif self.representation:
             # Get any representation data passed in to the frame initializer
@@ -339,6 +336,10 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
             raise TypeError(
                 '{0}.__init__ had {1} remaining unhandled arguments'.format(
                     self.__class__.__name__, len(args)))
+
+        if representation_data is None and differential_data is not None:
+            raise ValueError("Cannot pass in differential component data "
+                             "without positional (representation) data.")
 
         self._data = representation_data
         if self._data and differential_data is not None:
@@ -398,7 +399,7 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
             # representation object.
             if self._data.differentials:
                 key = (self._data.__class__.__name__,
-                       self._data.differentials[0].__class__.__name__,
+                       self._data.differentials['s'].__class__.__name__,
                        False)
             else:
                 key = (self._data.__class__.__name__, False)
@@ -799,7 +800,7 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
                 # TODO NOTE: only supports a single differential
                 data = self.data.represent_as([new_representation,
                                                new_differential])
-                diff = data.differentials[0]
+                diff = data.differentials['s']
             else:
                 data = self.data.represent_as(new_representation)
 
@@ -1148,7 +1149,7 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
             # default_differential, which expects full information, so the units
             # don't work out
             rep = self.represent_as(self.differential_cls, in_frame_units=True)
-            val = getattr(rep.differentials[0],
+            val = getattr(getattr(rep.differentials, 's'),
                           self.differential_component_names[attr])
             return val
 
