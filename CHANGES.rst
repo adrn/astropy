@@ -1,3 +1,159 @@
+3.0 (unreleased)
+-----------------
+
+New Features
+^^^^^^^^^^^^
+
+- ``astropy.config``
+
+- ``astropy.constants``
+
+- ``astropy.convolution``
+
+- ``astropy.coordinates``
+
+- ``astropy.cosmology``
+
+- ``astropy.extern``
+
+- ``astropy.io.ascii``
+
+- ``astropy.io.fits``
+
+- ``astropy.io.misc``
+
+- ``astropy.io.registry``
+
+- ``astropy.io.votable``
+
+- ``astropy.modeling``
+
+- ``astropy.nddata``
+
+- ``astropy.samp``
+
+- ``astropy.stats``
+
+- ``astropy.table``
+
+- ``astropy.tests``
+
+- ``astropy.time``
+
+- ``astropy.units``
+
+- ``astropy.utils``
+
+- ``astropy.visualization``
+
+- ``astropy.vo``
+
+- ``astropy.wcs``
+
+API Changes
+^^^^^^^^^^^
+
+- ``astropy.config``
+
+- ``astropy.constants``
+
+- ``astropy.convolution``
+
+- ``astropy.coordinates``
+
+- ``astropy.cosmology``
+
+- ``astropy.extern``
+
+- ``astropy.io.ascii``
+
+- ``astropy.io.fits``
+
+- ``astropy.io.misc``
+
+- ``astropy.io.registry``
+
+- ``astropy.io.votable``
+
+- ``astropy.modeling``
+
+- ``astropy.nddata``
+
+- ``astropy.samp``
+
+- ``astropy.stats``
+
+- ``astropy.table``
+
+- ``astropy.tests``
+
+- ``astropy.time``
+
+- ``astropy.units``
+
+- ``astropy.utils``
+
+- ``astropy.visualization``
+
+- ``astropy.vo``
+
+- ``astropy.wcs``
+
+Bug Fixes
+^^^^^^^^^
+
+- ``astropy.config``
+
+- ``astropy.constants``
+
+- ``astropy.convolution``
+
+- ``astropy.coordinates``
+
+- ``astropy.cosmology``
+
+- ``astropy.extern``
+
+- ``astropy.io.ascii``
+
+- ``astropy.io.fits``
+
+- ``astropy.io.misc``
+
+- ``astropy.io.registry``
+
+- ``astropy.io.votable``
+
+- ``astropy.modeling``
+
+- ``astropy.nddata``
+
+- ``astropy.samp``
+
+- ``astropy.stats``
+
+- ``astropy.table``
+
+- ``astropy.tests``
+
+- ``astropy.time``
+
+- ``astropy.units``
+
+- ``astropy.utils``
+
+- ``astropy.visualization``
+
+- ``astropy.vo``
+
+- ``astropy.wcs``
+
+Other Changes and Additions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Nothing changed yet.
+
+
 2.0 (unreleased)
 ----------------
 
@@ -32,6 +188,8 @@ New Features
   - Add a new argument, ``normalization_rtol``, to ``convolve_fft``, allowing
     the user to specify the relative error tolerance in the normalization of
     the convolution kernel. [#5649, #5177]
+  - Models can now be convoluted using ``convolve`` or ``convolve_fft``,
+    which generates a regular compound model. [#6015]
 
 - ``astropy.coordinates``
 
@@ -59,6 +217,9 @@ New Features
   - ``EarthLocation`` now has ``lat`` and ``lon`` properties (equivalent to, but
     preferred over, the previous ``latitude`` and ``longitude``). [#6237]
 
+  - Added a ``radial_velocity_correction`` method to ``SkyCoord`` to do compute
+    barycentric and heliocentric velocity corrections. [#5752]
+
   - Added a new ``AffineTransform`` class for coordinate frame transformations.
     This class supports matrix operations with vector offsets in position or
     any differential quantities (so far, only velocity is supported). The
@@ -79,6 +240,9 @@ New Features
 
   - Writing latex tables with only a ``tabular`` environment is now possible by
     setting ``latexdict['tabletyle']`` to ``None``. [#6205]
+
+  - Allow ECSV format to support reading and writing mixin columns like
+    ``Time``, ``SkyCoord``, ``Latitude``, and ``EarthLocation``. [#6181]
 
 - ``astropy.io.fits``
 
@@ -176,6 +340,10 @@ New Features
   - Added functionality to allow ``astropy.units.Quantity`` to be read
     from and written to a VOtable file. [#6132]
 
+  - Added support for reading and writing a table with mixin columns like
+    ``Time``, ``SkyCoord``, ``Latitude``, and ``EarthLocation`` via the
+    ASCII ECSV format. [#6181]
+
 - ``astropy.tests``
 
   - ``enable_deprecations_as_exceptions`` function now accepts additional
@@ -240,6 +408,11 @@ New Features
 API Changes
 ^^^^^^^^^^^
 
+- ``astropy.analytic_functions``
+
+  - This entire sub-package is deprecated because blackbody has been moved to
+    ``astropy.modeling.blackbody``. [#6191]
+
 - ``astropy.config``
 
 - ``astropy.constants``
@@ -269,7 +442,7 @@ API Changes
 
   - Cosmological models do not include any contribution from neutrinos or photons
     by default -- that is, the default value of Tcmb0 is 0.  This does not affect
-    built in models (such as WMAP or Planck). [#6122]
+    built in models (such as WMAP or Planck). [#6112]
 
 - ``astropy.io.ascii``
 
@@ -346,6 +519,15 @@ API Changes
   - Added optional ``axis`` parameter to ``insert`` method for ``Column`` and
     ``MaskedColumn`` classes. [#6092]
 
+  - The private ``_parent`` attribute in the ``info`` attribute of table
+    columns was changed from a direct reference to the parent column to a weak
+    reference.  This was in response to a memory leak caused by having a
+    circular reference cycle.  This change means that expressions like
+    ``col[3:5].info`` will now fail because at the point of the ``info``
+    property being evaluated the ``col[3:5]`` weak reference is dead.  Instead
+    force a reference with ``c = col[3:5]`` followed by
+    ``c.info.indices``. [#6277]
+
 - ``astropy.time``
 
 - ``astropy.units``
@@ -367,7 +549,7 @@ API Changes
     ``to_value(unit)`` method, since this is somewhat faster. Any subclasses
     that overwrote ``.to``, should also overwrite ``.to_value`` (or
     possibly just the private ``._to_value`` method.  (If you did this,
-    please let us know what was lacking that made this necessary!). [#6136]
+    please let us know what was lacking that made this necessary!). [#6137]
 
 - ``astropy.utils``
 
@@ -407,6 +589,9 @@ Bug Fixes
     in earlier versions of astropy.
     [#5782]
 
+  - Direct convolution previously implemented the wrong definition of
+    convolution.  This error only affects *asymmetric* kernels.  [#6267]
+
 - ``astropy.coordinates``
 
 - ``astropy.cosmology``
@@ -422,6 +607,9 @@ Bug Fixes
     headers are read into ``comments`` meta [#6097]
 
   - Use more sensible fix values for invalid NAXISj header values. [#5935]
+
+  - Close file on error to avoid creating a ``ResourceWarning`` warning
+    about an unclosed file. [#6168, #6177]
 
 - ``astropy.io.misc``
 
@@ -468,6 +656,10 @@ Bug Fixes
 
   - Fix QTable add/insert row for multidimensional Quantity. [#6092]
 
+  - Fix memory leak where updating a table column or deleting a table
+    object was not releasing the memory due to a reference cycle
+    in the column ``info`` attributes. [#6277]
+
 - ``astropy.table``
 
 - ``astropy.tests``
@@ -498,6 +690,8 @@ Other Changes and Additions
 - Numpy 1.7 and 1.8 are no longer supported. [#6006]
 
 - Python 3.3 is no longer suppored. [#6020]
+
+- The bundled ERFA was updated to version 1.4.0. [#6239]
 
 - The bundled version of pytest has now been removed, but the
   astropy.tests.helper.pytest import will continue to work properly.
