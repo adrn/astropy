@@ -25,6 +25,7 @@ from functools import partial
 import warnings
 import re
 from collections import OrderedDict
+from contextlib import contextmanager
 
 from ..extern import six
 from ..extern.six.moves import zip, cStringIO as StringIO
@@ -40,8 +41,28 @@ IGNORE_WARNINGS = (dict(category=RuntimeWarning, message='All-NaN|'
 
 STRING_TYPE_NAMES = {(False, 'S'): 'str',  # not PY3
                      (False, 'U'): 'unicode',
-                     (True, 'S'): 'bytes', # PY3
+                     (True, 'S'): 'bytes',  # PY3
                      (True, 'U'): 'str'}
+
+
+@contextmanager
+def serialize_context_as(context):
+    """Set context for serialization.
+
+    This will allow downstream code to understand the context in which a column
+    is being serialized.  Objects like Time or SkyCoord will have different
+    default serialization representations depending on context.
+
+    Parameters
+    ----------
+    context : str
+        Context name, e.g. 'fits', 'hdf5', 'ecsv', 'yaml'
+    """
+    old_context = BaseColumnInfo._serialize_context
+    BaseColumnInfo._serialize_context = context
+    yield
+    BaseColumnInfo._serialize_context = old_context
+
 
 def dtype_info_name(dtype):
     """Return a human-oriented string name of the ``dtype`` arg.
@@ -79,6 +100,7 @@ def dtype_info_name(dtype):
         out = dtype.name
 
     return out
+
 
 def data_info_factory(names, funcs):
     """
@@ -189,14 +211,40 @@ class DataInfo(object):
     attr_names = set(['name', 'unit', 'dtype', 'format', 'description', 'meta'])
     _attrs_no_copy = set()
     _info_summary_attrs = ('dtype', 'shape', 'unit', 'format', 'description', 'class')
-    _represent_as_dict_attrs= ()
-    _parent = None
+    _represent_as_dict_attrs = ()
+    _parent_ref = None
 
     def __init__(self, bound=False):
         # If bound to a data object instance then create the dict of attributes
         # which stores the info attribute values.
         if bound:
             self._attrs = dict((attr, None) for attr in self.attr_names)
+
+    @property
+    def _parent(self):
+        if self._parent_ref is None:
+            return None
+        else:
+            parent = self._parent_ref()
+            if parent is not None:
+                return parent
+
+            else:
+                raise AttributeError("""\
+failed access "info" attribute on a temporary object.
+
+It looks like you have done something like ``col[3:5].info``, i.e.
+you accessed ``info`` from a temporary slice object ``col[3:5]`` that
+only exists momentarily.  This has failed because the reference to
+that temporary object is now lost.  Instead force a permanent
+reference with ``c = col[3:5]`` followed by ``c.info``.""")
+
+    @_parent.setter
+    def _parent(self, value):
+        if value is None:
+            self._parent_ref = None
+        else:
+            self._parent_ref = weakref.ref(value)
 
     def __get__(self, instance, owner_cls):
         if instance is None:
@@ -283,10 +331,7 @@ class DataInfo(object):
         self._attrs[attr] = value
 
     def _represent_as_dict(self):
-        """
-        Get the values for the parent ``attrs`` and return as a dict.
-        This is typically used for serializing the parent.
-        """
+        """Get the values for the parent ``attrs`` and return as a dict."""
         return _get_obj_attrs_map(self._parent, self._represent_as_dict_attrs)
 
     def _construct_from_dict(self, map):
@@ -424,6 +469,14 @@ class BaseColumnInfo(DataInfo):
     attr_names = DataInfo.attr_names.union(['parent_table', 'indices'])
     _attrs_no_copy = set(['parent_table'])
 
+    # Context for serialization.  This can be set temporarily via
+    # ``serialize_context_as(context)`` context manager to allow downstream
+    # code to understand the context in which a column is being serialized.
+    # Typical values are 'fits', 'hdf5', 'ecsv', 'yaml'.  Objects like Time or
+    # SkyCoord will have different default serialization representations
+    # depending on context.
+    _serialize_context = None
+
     def iter_str_vals(self):
         """
         This is a mixin-safe version of Column.iter_str_vals.
@@ -464,10 +517,10 @@ class BaseColumnInfo(DataInfo):
         elif isinstance(index, np.ndarray) and index.dtype.kind == 'b':
             # boolean mask
             keys = np.where(index)[0]
-        else: # single int
+        else:  # single int
             keys = [index]
 
-        value = np.atleast_1d(value) # turn array(x) into array([x])
+        value = np.atleast_1d(value)  # turn array(x) into array([x])
         if value.size == 1:
             # repeat single value
             value = list(value) * len(keys)

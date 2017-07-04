@@ -128,6 +128,7 @@ class Angle(u.SpecificTypeQuantity):
         else:
             raise u.UnitsError("Can not parse '{0}' as unit '{1}'"
                                .format(angle, unit))
+
     @staticmethod
     def _convert_unit_to_angle_unit(unit):
         return u.hourangle if unit is u.hour else unit
@@ -544,6 +545,10 @@ class Latitude(Angle):
         return _no_angle_subclass(results)
 
 
+class LongitudeInfo(u.QuantityInfo):
+    _represent_as_dict_attrs = u.QuantityInfo._represent_as_dict_attrs + ('wrap_angle',)
+
+
 class Longitude(Angle):
     """
     Longitude-like angle(s) which are wrapped within a contiguous 360 degree range.
@@ -601,6 +606,7 @@ class Longitude(Angle):
 
     _wrap_angle = None
     _default_wrap_angle = Angle(360 * u.deg)
+    info = LongitudeInfo()
 
     def __new__(cls, angle, unit=None, wrap_angle=None, **kwargs):
         # Forbid creating a Long from a Lat.

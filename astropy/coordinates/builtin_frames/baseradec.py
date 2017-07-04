@@ -28,9 +28,9 @@ _base_radec_docstring = """Parameters
     pm_ra_cosdec : :class:`~astropy.units.Quantity`, optional, must be keyword
         The proper motion in Right Ascension (including the ``cos(dec)`` factor)
         for this object (``pm_dec`` must also be given).
-    pm_dec : :class:`~astropy.units.Quantity`, optional, must be keyword The
-        proper motion in Declination for this object (``pm_ra_cosdec`` must also
-        be given).
+    pm_dec : :class:`~astropy.units.Quantity`, optional, must be keyword
+        The proper motion in Declination for this object (``pm_ra_cosdec`` must
+        also be given).
     radial_velocity : :class:`~astropy.units.Quantity`, optional, must be keyword
         The radial velocity of this object.
 
@@ -38,6 +38,7 @@ _base_radec_docstring = """Parameters
         If `True` (default), make copies of the input coordinate arrays.
         Can only be passed in as a keyword argument.
 """
+
 
 class BaseRADecFrame(BaseCoordinateFrame):
     """
@@ -77,6 +78,7 @@ class BaseRADecFrame(BaseCoordinateFrame):
 
     default_representation = r.SphericalRepresentation
     default_differential = r.SphericalCosLatDifferential
+
 
 BaseRADecFrame.__doc__ = BaseRADecFrame.__doc__.format(
     params=_base_radec_docstring)

@@ -10,7 +10,7 @@ from ... import units as u
 from ..builtin_frames import ICRS, Galactic, Galactocentric
 from .. import builtin_frames as bf
 from ...tests.helper import quantity_allclose
-
+from ..errors import ConvertError
 
 def test_api():
     # transform observed Barycentric velocities to full-space Galactocentric
@@ -32,34 +32,50 @@ def test_api():
     icrs.transform_to(Galactocentric)
 
 
-def test_all_arg_options():
-    # I think this is a list of all possible valid combinations of arguments.
+@pytest.mark.parametrize('kwargs', [
+    dict(ra=37.4*u.deg, dec=-55.8*u.deg),
+    dict(ra=37.4*u.deg, dec=-55.8*u.deg, distance=150*u.pc),
+    dict(ra=37.4*u.deg, dec=-55.8*u.deg,
+         pm_ra_cosdec=-21.2*u.mas/u.yr, pm_dec=17.1*u.mas/u.yr),
+    dict(ra=37.4*u.deg, dec=-55.8*u.deg, distance=150*u.pc,
+         pm_ra_cosdec=-21.2*u.mas/u.yr, pm_dec=17.1*u.mas/u.yr),
+    dict(ra=37.4*u.deg, dec=-55.8*u.deg,
+         radial_velocity=105.7*u.km/u.s),
+    dict(ra=37.4*u.deg, dec=-55.8*u.deg, distance=150*u.pc,
+         radial_velocity=105.7*u.km/u.s),
+    dict(ra=37.4*u.deg, dec=-55.8*u.deg,
+         radial_velocity=105.7*u.km/u.s,
+         pm_ra_cosdec=-21.2*u.mas/u.yr, pm_dec=17.1*u.mas/u.yr),
+    dict(ra=37.4*u.deg, dec=-55.8*u.deg, distance=150*u.pc,
+         pm_ra_cosdec=-21.2*u.mas/u.yr, pm_dec=17.1*u.mas/u.yr,
+         radial_velocity=105.7*u.km/u.s)
+])
+def test_all_arg_options(kwargs):
+    # Above is a list of all possible valid combinations of arguments.
     # Here we do a simple thing and just verify that passing them in, we have
     # access to the relevant attributes from the resulting object
-    all_kwargs = []
+    icrs = ICRS(**kwargs)
+    gal = icrs.transform_to(Galactic)
+    repr_gal = repr(gal)
 
-    all_kwargs += [dict(ra=37.4*u.deg, dec=-55.8*u.deg)]
-    all_kwargs += [dict(ra=37.4*u.deg, dec=-55.8*u.deg, distance=150*u.pc)]
+    for k in kwargs:
+        getattr(icrs, k)
 
-    all_kwargs += [dict(ra=37.4*u.deg, dec=-55.8*u.deg,
-                        pm_ra_cosdec=-21.2*u.mas/u.yr, pm_dec=17.1*u.mas/u.yr)]
-    all_kwargs += [dict(ra=37.4*u.deg, dec=-55.8*u.deg, distance=150*u.pc,
-                        pm_ra_cosdec=-21.2*u.mas/u.yr, pm_dec=17.1*u.mas/u.yr)]
+    if 'pm_ra_cosdec' in kwargs: # should have both
+        assert 'pm_l_cosb' in repr_gal
+        assert 'pm_b' in repr_gal
+        assert 'mas / yr' in repr_gal
 
-    all_kwargs += [dict(ra=37.4*u.deg, dec=-55.8*u.deg,
-                        radial_velocity=105.7*u.km/u.s)]
-    all_kwargs += [dict(ra=37.4*u.deg, dec=-55.8*u.deg, distance=150*u.pc,
-                        radial_velocity=105.7*u.km/u.s)]
+        if 'radial_velocity' not in kwargs:
+            assert 'radial_velocity' not in repr_gal
 
-    all_kwargs += [dict(ra=37.4*u.deg, dec=-55.8*u.deg, distance=150*u.pc,
-                        pm_ra_cosdec=-21.2*u.mas/u.yr, pm_dec=17.1*u.mas/u.yr,
-                        radial_velocity=105.7*u.km/u.s)]
+    if 'radial_velocity' in kwargs:
+        assert 'radial_velocity' in repr_gal
+        assert 'km / s' in repr_gal
 
-    for i, kwargs in enumerate(all_kwargs):
-        icrs = ICRS(**kwargs)
-
-        for k in kwargs:
-            getattr(icrs, k)
+        if 'pm_ra_cosdec' not in kwargs:
+            assert 'pm_l_cosb' not in repr_gal
+            assert 'pm_b' not in repr_gal
 
 @pytest.mark.parametrize('cls,lon,lat', [
     [bf.ICRS, 'ra', 'dec'], [bf.FK4, 'ra', 'dec'], [bf.FK4NoETerms, 'ra', 'dec'],
@@ -77,6 +93,7 @@ def test_expected_arg_names(cls, lon, lat):
               'pm_{0}'.format(lat): 17.1*u.mas/u.yr,
               'radial_velocity': 105.7*u.km/u.s}
     frame = cls(**kwargs)
+
 
 # these data are extracted from the vizier copy of XHIP:
 # http://vizier.u-strasbg.fr/viz-bin/VizieR-3?-source=+V/137A/XHIP
@@ -98,9 +115,11 @@ _xhip_data = """
 
 # in principal we could parse the above as a table, but doing it "manually"
 # makes this test less tied to Table working correctly
+
+
 @pytest.mark.parametrize('hip,ra,dec,pmra,pmdec,glon,glat,dist,pmglon,pmglat,rv,U,V,W',
                          [[float(val) for val in row.split()] for row in _xhip_data.split('\n')])
-def test_xhip_galactic(hip,ra, dec, pmra, pmdec, glon, glat, dist, pmglon, pmglat, rv, U, V, W):
+def test_xhip_galactic(hip, ra, dec, pmra, pmdec, glon, glat, dist, pmglon, pmglat, rv, U, V, W):
     i = ICRS(ra*u.deg, dec*u.deg, dist*u.pc,
              pm_ra_cosdec=pmra*u.marcsec/u.yr, pm_dec=pmdec*u.marcsec/u.yr,
              radial_velocity=rv*u.km/u.s)
@@ -116,3 +135,34 @@ def test_xhip_galactic(hip,ra, dec, pmra, pmdec, glon, glat, dist, pmglon, pmgla
     assert quantity_allclose(uvwg.d_x, U*u.km/u.s, atol=.1*u.km/u.s)
     assert quantity_allclose(uvwg.d_y, V*u.km/u.s, atol=.1*u.km/u.s)
     assert quantity_allclose(uvwg.d_z, W*u.km/u.s, atol=.1*u.km/u.s)
+
+@pytest.mark.parametrize('kwargs,expect_success', [
+    [dict(ra=37.4*u.deg, dec=-55.8*u.deg), False],
+    [dict(ra=37.4*u.deg, dec=-55.8*u.deg, distance=150*u.pc), True],
+    [dict(ra=37.4*u.deg, dec=-55.8*u.deg,
+          pm_ra_cosdec=-21.2*u.mas/u.yr, pm_dec=17.1*u.mas/u.yr), False],
+    [dict(ra=37.4*u.deg, dec=-55.8*u.deg, radial_velocity=105.7*u.km/u.s), False],
+    [dict(ra=37.4*u.deg, dec=-55.8*u.deg, distance=150*u.pc,
+          radial_velocity=105.7*u.km/u.s), False],
+    [dict(ra=37.4*u.deg, dec=-55.8*u.deg,
+          radial_velocity=105.7*u.km/u.s,
+          pm_ra_cosdec=-21.2*u.mas/u.yr, pm_dec=17.1*u.mas/u.yr), False],
+    [dict(ra=37.4*u.deg, dec=-55.8*u.deg, distance=150*u.pc,
+          pm_ra_cosdec=-21.2*u.mas/u.yr, pm_dec=17.1*u.mas/u.yr,
+          radial_velocity=105.7*u.km/u.s), True]
+
+])
+def test_frame_affinetransform(kwargs, expect_success):
+    """There are already tests in test_transformations.py that check that
+    an AffineTransform fails without full-space data, but this just checks that
+    things work as expected at the frame level as well.
+    """
+
+    icrs = ICRS(**kwargs)
+
+    if expect_success:
+        gc = icrs.transform_to(Galactocentric)
+
+    else:
+        with pytest.raises(ConvertError):
+            icrs.transform_to(Galactocentric)

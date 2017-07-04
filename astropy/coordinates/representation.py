@@ -41,6 +41,7 @@ __all__ = ["BaseRepresentationOrDifferential", "BaseRepresentation",
 REPRESENTATION_CLASSES = {}
 DIFFERENTIAL_CLASSES = {}
 
+
 def _array2string(values, prefix=''):
     # Mimic numpy >=1.12 array2string, in which structured arrays are
     # typeset taking into account all printoptions.
@@ -66,6 +67,7 @@ def _array2string(values, prefix=''):
 
     return np.array2string(values, formatter=formatter, style=fmt,
                            separator=', ', prefix=prefix)
+
 
 def _combine_xyz(x, y, z, xyz_axis=0):
     """
@@ -376,7 +378,7 @@ class BaseRepresentationOrDifferential(ShapedLikeNDArray):
 
         diffstr = ''
         if getattr(self, 'differentials', None):
-            diffstr = '\n (has differentials: {0})'.format(
+            diffstr = '\n (has differentials w.r.t.: {0})'.format(
                 ', '.join([repr(key) for key in self.differentials.keys()]))
 
         unitstr = ('in ' + self._unitstr) if self._unitstr else '[dimensionless]'
@@ -397,6 +399,7 @@ def _make_getter(component):
     # This has to be done in a function to ensure the reference to component
     # is not lost/redirected.
     component = '_' + component
+
     def get_component(self):
         return getattr(self, component)
     return get_component
@@ -510,10 +513,7 @@ class BaseRepresentation(BaseRepresentationOrDifferential):
                 raise TypeError("'differentials' argument must be a "
                                 "dictionary-like object")
 
-            if diff.__class__ not in self._compatible_differentials:
-                raise TypeError("Differential '{0}' is not compatible with "
-                                "this representation '{1}'".format(repr(diff),
-                                                                   repr(self)))
+            diff._check_base(self)
 
             if (isinstance(diff, RadialDifferential) and
                     isinstance(self, UnitSphericalRepresentation)):
@@ -1919,6 +1919,7 @@ class CylindricalRepresentation(BaseRepresentation):
 
         return CartesianRepresentation(x=x, y=y, z=z, copy=False)
 
+
 class MetaBaseDifferential(InheritDocstrings, abc.ABCMeta):
     """Set default ``attr_classes`` and component getters on a Differential.
 
@@ -1990,10 +1991,10 @@ class BaseDifferential(BaseRepresentationOrDifferential):
 
     @classmethod
     def _check_base(cls, base):
-        if not isinstance(base, cls.base_representation):
-            raise TypeError('need a base of the correct representation type, '
-                            '{0}, not {1}.'.format(cls.base_representation,
-                                                   type(base)))
+        if cls not in base._compatible_differentials:
+            raise TypeError("Differential class {0} is not compatible with the "
+                            "base (representation) class {1}"
+                            .format(cls, base.__class__))
 
     def _get_deriv_key(self, base):
         """Given a base (representation instance), determine the unit of the
@@ -2003,10 +2004,7 @@ class BaseDifferential(BaseRepresentationOrDifferential):
 
         # This check is just a last resort so we don't return a strange unit key
         # from accidentally passing in the wrong base.
-        if self.__class__ not in base._compatible_differentials:
-            raise TypeError("Differential class {0} is not compatible with the "
-                            "base (representation) class {1}"
-                            .format(self.__class__, base.__class__))
+        self._check_base(base)
 
         for name in base.components:
             comp = getattr(base, name)
@@ -2223,6 +2221,7 @@ class CartesianDifferential(BaseDifferential):
         If `True` (default), arrays will be copied rather than referenced.
     """
     base_representation = CartesianRepresentation
+
     def __init__(self, d_x, d_y=None, d_z=None, unit=None, xyz_axis=None,
                  copy=True):
 
@@ -2331,12 +2330,13 @@ class BaseSphericalDifferential(BaseDifferential):
                 isinstance(other, RadialDifferential)):
             all_components = set(self.components) | set(other.components)
             first, second = (self, other) if not reverse else (other, self)
-            result_args = {c : op(getattr(first, c, 0.), getattr(second, c, 0.))
+            result_args = {c: op(getattr(first, c, 0.), getattr(second, c, 0.))
                            for c in all_components}
             return SphericalDifferential(**result_args)
 
         return super(BaseSphericalDifferential,
                      self)._combine_operation(op, other, reverse)
+
 
 class UnitSphericalDifferential(BaseSphericalDifferential):
     """Differential(s) of points on a unit sphere.
@@ -2349,6 +2349,10 @@ class UnitSphericalDifferential(BaseSphericalDifferential):
         If `True` (default), arrays will be copied rather than referenced.
     """
     base_representation = UnitSphericalRepresentation
+
+    @classproperty
+    def _dimensional_differential(cls):
+        return SphericalDifferential
 
     def __init__(self, d_lon, d_lat, copy=True):
         super(UnitSphericalDifferential,
@@ -2390,6 +2394,7 @@ class UnitSphericalDifferential(BaseSphericalDifferential):
 
         return super(UnitSphericalDifferential,
                      cls).from_representation(representation, base)
+
 
 class SphericalDifferential(BaseSphericalDifferential):
     """Differential(s) of points in 3D spherical coordinates.
@@ -2528,7 +2533,7 @@ class BaseSphericalCosLatDifferential(BaseDifferential):
                 isinstance(other, RadialDifferential)):
             all_components = set(self.components) | set(other.components)
             first, second = (self, other) if not reverse else (other, self)
-            result_args = {c : op(getattr(first, c, 0.), getattr(second, c, 0.))
+            result_args = {c: op(getattr(first, c, 0.), getattr(second, c, 0.))
                            for c in all_components}
             return SphericalCosLatDifferential(**result_args)
 
@@ -2549,6 +2554,10 @@ class UnitSphericalCosLatDifferential(BaseSphericalCosLatDifferential):
     base_representation = UnitSphericalRepresentation
     attr_classes = OrderedDict([('d_lon_coslat', u.Quantity),
                                 ('d_lat', u.Quantity)])
+
+    @classproperty
+    def _dimensional_differential(cls):
+        return SphericalCosLatDifferential
 
     def __init__(self, d_lon_coslat, d_lat, copy=True):
         super(UnitSphericalCosLatDifferential,
@@ -2698,7 +2707,7 @@ class RadialDifferential(BaseDifferential):
                                 BaseSphericalCosLatDifferential)):
             all_components = set(self.components) | set(other.components)
             first, second = (self, other) if not reverse else (other, self)
-            result_args = {c : op(getattr(first, c, 0.), getattr(second, c, 0.))
+            result_args = {c: op(getattr(first, c, 0.), getattr(second, c, 0.))
                            for c in all_components}
             return SphericalDifferential(**result_args)
 

@@ -17,6 +17,8 @@ classes to define custom YAML tags for the following astropy classes:
 - `astropy.coordinates.Angle`
 - `astropy.coordinates.Latitude`
 - `astropy.coordinates.Longitude`
+- `astropy.coordinates.EarthLocation`
+- `astropy.table.SerializedColumn`
 
 .. Note ::
 
@@ -75,6 +77,7 @@ from ... import units as u
 from ... import coordinates as coords
 from ...utils import minversion
 from ...extern import six
+from ...table import SerializedColumn
 
 
 try:
@@ -88,6 +91,7 @@ YAML_LT_3_12 = not minversion(yaml, '3.12')
 
 __all__ = ['AstropyLoader', 'AstropyDumper', 'load', 'load_all', 'dump']
 
+
 def _unit_representer(dumper, obj):
     out = {'unit': str(obj.to_string())}
     return dumper.represent_mapping('!astropy.units.Unit', out)
@@ -96,6 +100,16 @@ def _unit_representer(dumper, obj):
 def _unit_constructor(loader, node):
     map = loader.construct_mapping(node)
     return u.Unit(map['unit'])
+
+
+def _serialized_column_representer(dumper, obj):
+    out = dumper.represent_mapping('!astropy.table.SerializedColumn', obj)
+    return out
+
+
+def _serialized_column_constructor(loader, node):
+    map = loader.construct_mapping(node)
+    return SerializedColumn(map)
 
 
 def _time_representer(dumper, obj):
@@ -202,11 +216,13 @@ class AstropyLoader(yaml.SafeLoader):
     <http://pyyaml.org/wiki/PyYAMLDocumentation>`_ for details of the
     class signature.
     """
+
     def _construct_python_tuple(self, node):
         return tuple(self.construct_sequence(node))
 
     def _construct_python_unicode(self, node):
         return self.construct_scalar(node)
+
 
 class AstropyDumper(yaml.SafeDumper):
     """
@@ -219,6 +235,7 @@ class AstropyDumper(yaml.SafeDumper):
     `PyYaml documentation <http://pyyaml.org/wiki/PyYAMLDocumentation>`_
     for details of the class signature.
     """
+
     def _represent_tuple(self, data):
         return self.represent_sequence('tag:yaml.org,2002:python/tuple', data)
 
@@ -233,6 +250,7 @@ class AstropyDumper(yaml.SafeDumper):
             if isinstance(data, six.string_types + (bool, int, float)):
                 return True
 
+
 AstropyDumper.add_representer(u.IrreducibleUnit, _unit_representer)
 AstropyDumper.add_representer(u.CompositeUnit, _unit_representer)
 AstropyDumper.add_multi_representer(u.Unit, _unit_representer)
@@ -241,6 +259,7 @@ AstropyDumper.add_representer(np.ndarray, _ndarray_representer)
 AstropyDumper.add_representer(Time, _time_representer)
 AstropyDumper.add_representer(TimeDelta, _timedelta_representer)
 AstropyDumper.add_representer(coords.SkyCoord, _skycoord_representer)
+AstropyDumper.add_representer(SerializedColumn, _serialized_column_representer)
 
 # Numpy dtypes
 AstropyDumper.add_representer(np.bool_,
@@ -269,6 +288,8 @@ AstropyLoader.add_constructor('!astropy.time.Time', _time_constructor)
 AstropyLoader.add_constructor('!astropy.time.TimeDelta', _timedelta_constructor)
 AstropyLoader.add_constructor('!astropy.coordinates.sky_coordinate.SkyCoord',
                               _skycoord_constructor)
+AstropyLoader.add_constructor('!astropy.table.SerializedColumn',
+                              _serialized_column_constructor)
 
 for cls, tag in ((u.Quantity, '!astropy.units.Quantity'),
                  (coords.Angle, '!astropy.coordinates.Angle'),

@@ -5,6 +5,7 @@ from ..extern import six
 
 from .. import config as _config
 
+
 class Conf(_config.ConfigNamespace):
     """
     Configuration parameters for `astropy.table`.
@@ -47,6 +48,7 @@ from .table import (Table, QTable, TableColumns, Row, TableFormatter,
 from .operations import join, hstack, vstack, unique, TableMergeError
 from .bst import BST, FastBST, FastRBT
 from .sorted_array import SortedArray
+from .serialize import SerializedColumn
 
 # Finally import the formats for the read and write method but delay building
 # the documentation until all are loaded. (#5275)

@@ -44,7 +44,7 @@ env:
         # E722 - do not use bare except
         # E901 - SyntaxError or IndentationError
         # E902 - IOError
-        - FLAKE8_OPT="--select=E101,W191,W291,W292,W293,W391,E111,E112,E113,E722,E901,E902 --exclude=extern,sphinx,*parsetab.py"
+        - FLAKE8_OPT="--select=E101,W191,W291,W292,W293,W391,E111,E112,E113,E722,E901,E902"
 
     matrix:
         - PYTHON_VERSION=2.7 SETUP_CMD='egg_info'
@@ -72,6 +72,7 @@ matrix:
           env: SETUP_CMD='build_docs -w'
                CONDA_DEPENDENCIES=$CONDA_ALL_DEPENDENCIES
                PIP_DEPENDENCIES='sphinx-gallery>=0.1.9 pillow --no-deps jplephem'
+               SPHINX_VERSION='>1.6'
 
         # Try all python versions and Numpy versions. Since we can assume that
         # the Numpy developers have taken care of testing Numpy with different
@@ -86,6 +87,9 @@ matrix:
         - os: linux
           env: PYTHON_VERSION=3.5 NUMPY_VERSION=1.11
                SETUP_CMD='test --open-files'
+        - os: linux
+          env: NUMPY_VERSION=1.12
+               SETUP_CMD='test --open-files -a "--durations=50"'
 
         # Now try with all optional dependencies the latest 3.x and on 2.7.
         # (with latest numpy). We also test the two latest matplotlib versions
@@ -142,6 +146,7 @@ install:
     - source ci-helpers/travis/setup_conda.sh
 
 script:
+    - echo "$MAIN_CMD $SETUP_CMD"
     - $MAIN_CMD $SETUP_CMD
 
 after_success:

@@ -146,11 +146,16 @@ _warnings_to_ignore_by_pyver = {
         r"The value of convert_charrefs will become True in 3\.5\. "
         r"You are encouraged to set the value explicitly\."]),
     (3, 5): set([
-        # py.test raises this warning on Python 3.5.
-        # This can be removed when fixed in py.test.
+        # py.test raised this warning in inspect on Python 3.5.
         # See https://github.com/pytest-dev/pytest/pull/1009
+        # Keeping it since e.g. lxml as of 3.8.0 is still calling getargspec()
         r"inspect\.getargspec\(\) is deprecated, use "
-        r"inspect\.signature\(\) instead"])}
+        r"inspect\.signature\(\) instead"]),
+    (3, 6): set([
+        # inspect raises this slightly different warning on Python 3.6.
+        # Keeping it since e.g. lxml as of 3.8.0 is still calling getargspec()
+        r"inspect\.getargspec\(\) is deprecated, use "
+        r"inspect\.signature\(\) or inspect\.getfullargspec\(\)"])}
 
 
 def enable_deprecations_as_exceptions(include_astropy_deprecations=True,
@@ -267,6 +272,7 @@ class catch_warnings(warnings.catch_warnings):
             do.something.bad()
         assert len(w) > 0
     """
+
     def __init__(self, *classes):
         super(catch_warnings, self).__init__(record=True)
         self.classes = classes
@@ -411,7 +417,7 @@ def generic_recursive_equality_test(a, b, class_history):
 
         if hasattr(dict_a[key], '__dict__'):
             if dict_a[key].__class__ in class_history:
-                #attempt to prevent infinite recursion
+                # attempt to prevent infinite recursion
                 pass
             else:
                 new_class_history = [dict_a[key].__class__]
@@ -484,7 +490,7 @@ def _unquantify_allclose_arguments(actual, desired, rtol, atol):
                                "are not convertible"
                                .format(atol.unit, actual.unit))
 
-    rtol =  u.Quantity(rtol, subok=True, copy=False)
+    rtol = u.Quantity(rtol, subok=True, copy=False)
     try:
         rtol = rtol.to(u.dimensionless_unscaled)
     except Exception:

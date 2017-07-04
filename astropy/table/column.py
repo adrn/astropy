@@ -13,6 +13,15 @@ from copy import deepcopy
 import numpy as np
 from numpy import ma
 
+# Remove this when Numpy no longer emits this warning and that Numpy version
+# becomes the minimum required version for Astropy.
+# https://github.com/astropy/astropy/issues/6285
+try:
+    from numpy.ma.core import MaskedArrayFutureWarning
+except ImportError:
+    # For Numpy versions that do not raise this warning.
+    MaskedArrayFutureWarning = None
+
 from ..units import Unit, Quantity
 from ..utils.console import color_print
 from ..utils.metadata import MetaData
@@ -29,6 +38,7 @@ from ._column_mixins import _ColumnGetitemShim, _MaskedColumnGetitemShim
 # parent table.
 FORMATTER = pprint.TableFormatter()
 
+
 class StringTruncateWarning(UserWarning):
     """
     Warning class for when a string column is assigned a value
@@ -39,6 +49,7 @@ class StringTruncateWarning(UserWarning):
     stacklevel=2 to show the user where the issue occurred in their code.
     """
     pass
+
 
 # Always emit this warning, not just the first instance
 warnings.simplefilter('always', StringTruncateWarning)
@@ -346,7 +357,7 @@ class BaseColumn(_ColumnGetitemShim, np.ndarray):
         # or viewcast e.g. obj.view(Column).  In either case we want to
         # init Column attributes for self from obj if possible.
         self.parent_table = None
-        if not hasattr(self, 'indices'): # may have been copied in __new__
+        if not hasattr(self, 'indices'):  # may have been copied in __new__
             self.indices = []
         self._copy_attrs(obj)
 
@@ -908,6 +919,7 @@ class Column(BaseColumn):
         Make comparison methods which encode the ``other`` object to utf-8
         in the case of a bytestring dtype for Py3+.
         """
+
         def _compare(self, other):
             if not six.PY2 and self.dtype.char == 'S':
                 other = self._encode_str(other)
@@ -1230,7 +1242,16 @@ class MaskedColumn(Column, _MaskedColumnGetitemShim, ma.MaskedArray):
 
         # update indices
         self.info.adjust_indices(index, value, len(self))
-        ma.MaskedArray.__setitem__(self, index, value)
+
+        # Remove this when Numpy no longer emits this warning and that
+        # Numpy version becomes the minimum required version for Astropy.
+        # https://github.com/astropy/astropy/issues/6285
+        if MaskedArrayFutureWarning is None:
+            ma.MaskedArray.__setitem__(self, index, value)
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', MaskedArrayFutureWarning)
+                ma.MaskedArray.__setitem__(self, index, value)
 
     # We do this to make the methods show up in the API docs
     name = BaseColumn.name

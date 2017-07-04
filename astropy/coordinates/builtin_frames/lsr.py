@@ -18,9 +18,10 @@ from .galactic import Galactic
 # For speed
 J2000 = Time('J2000')
 
-v_bary_Schoenrich2010 = r.CartesianDifferential([-11.1, 12.24, 7.25]*u.km/u.s)
+v_bary_Schoenrich2010 = r.CartesianDifferential([11.1, 12.24, 7.25]*u.km/u.s)
 
 __all__ = ['LSR', 'GalacticLSR']
+
 
 class LSR(BaseRADecFrame):
     r"""A coordinate or frame in the Local Standard of Rest (LSR).
@@ -37,9 +38,9 @@ class LSR(BaseRADecFrame):
     velocity frame.
 
     We use default values from Schönrich et al. (2010) for the barycentric
-    velocity relative to the LSR, which is defined in Galactic cartesian
-    velocity components
-    :math:`(U, V, W) = (-11.1, 12.24, 7.25)~{{\rm km}}~{{\rm s}}^{{-1}}`. These
+    velocity relative to the LSR, which is defined in Galactic (right-handed)
+    cartesian velocity components
+    :math:`(U, V, W) = (11.1, 12.24, 7.25)~{{\rm km}}~{{\rm s}}^{{-1}}`. These
     values are customizable via the ``v_bary`` argument which specifies the
     velocity of the solar system barycenter with respect to the LSR.
 
@@ -59,25 +60,29 @@ class LSR(BaseRADecFrame):
     v_bary = DifferentialFrameAttribute(default=v_bary_Schoenrich2010,
                                         allowed_classes=[r.CartesianDifferential])
 
+
 LSR.__doc__ = LSR.__doc__.format(params=_base_radec_docstring)
+
 
 @frame_transform_graph.transform(AffineTransform, ICRS, LSR)
 def icrs_to_lsr(icrs_coord, lsr_frame):
     v_bary_gal = Galactic(lsr_frame.v_bary.to_cartesian())
     v_bary_icrs = v_bary_gal.transform_to(icrs_coord)
     v_offset = v_bary_icrs.data.represent_as(r.CartesianDifferential)
-    offset = r.CartesianRepresentation([0,0,0]*u.au, differentials=v_offset)
+    offset = r.CartesianRepresentation([0, 0, 0]*u.au, differentials=v_offset)
     return None, offset
+
 
 @frame_transform_graph.transform(AffineTransform, LSR, ICRS)
 def lsr_to_icrs(lsr_coord, icrs_frame):
     v_bary_gal = Galactic(lsr_coord.v_bary.to_cartesian())
     v_bary_icrs = v_bary_gal.transform_to(icrs_frame)
     v_offset = v_bary_icrs.data.represent_as(r.CartesianDifferential)
-    offset = r.CartesianRepresentation([0,0,0]*u.au, differentials=-v_offset)
+    offset = r.CartesianRepresentation([0, 0, 0]*u.au, differentials=-v_offset)
     return None, offset
 
 # ------------------------------------------------------------------------------
+
 
 class GalacticLSR(BaseCoordinateFrame):
     r"""A coordinate or frame in the Local Standard of Rest (LSR), axis-aligned
@@ -95,11 +100,11 @@ class GalacticLSR(BaseCoordinateFrame):
     velocity frame.
 
     We use default values from Schönrich et al. (2010) for the barycentric
-    velocity relative to the LSR, which is defined in Galactic cartesian
-    velocity components :math:`(U, V, W) = (-11.1, 12.24, 7.25)~
-    {\rm km}~{\rm s}^{-1}`. These values are customizable via the ``v_bary``
-    argument which specifies the velocity of the solar system barycenter with
-    respect to the LSR.
+    velocity relative to the LSR, which is defined in Galactic (right-handed)
+    cartesian velocity components
+    :math:`(U, V, W) = (11.1, 12.24, 7.25)~{{\rm km}}~{{\rm s}}^{{-1}}`. These
+    values are customizable via the ``v_bary`` argument which specifies the
+    velocity of the solar system barycenter with respect to the LSR.
 
     The frame attributes are listed under **Other Parameters**.
 
@@ -177,12 +182,13 @@ class GalacticLSR(BaseCoordinateFrame):
 def galactic_to_galacticlsr(galactic_coord, lsr_frame):
     v_bary_gal = Galactic(lsr_frame.v_bary.to_cartesian())
     v_offset = v_bary_gal.data.represent_as(r.CartesianDifferential)
-    offset = r.CartesianRepresentation([0,0,0]*u.au, differentials=v_offset)
+    offset = r.CartesianRepresentation([0, 0, 0]*u.au, differentials=v_offset)
     return None, offset
+
 
 @frame_transform_graph.transform(AffineTransform, GalacticLSR, Galactic)
 def galacticlsr_to_galactic(lsr_coord, galactic_frame):
     v_bary_gal = Galactic(lsr_coord.v_bary.to_cartesian())
     v_offset = v_bary_gal.data.represent_as(r.CartesianDifferential)
-    offset = r.CartesianRepresentation([0,0,0]*u.au, differentials=-v_offset)
+    offset = r.CartesianRepresentation([0, 0, 0]*u.au, differentials=-v_offset)
     return None, offset

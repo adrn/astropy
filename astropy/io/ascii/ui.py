@@ -262,7 +262,7 @@ def read(table, guess=None, **kwargs):
     # If an Outputter is supplied in kwargs that will take precedence.
     new_kwargs = {}
     fast_reader_param = kwargs.get('fast_reader', True)
-    if 'Outputter' in kwargs: # user specified Outputter, not supported for fast reading
+    if 'Outputter' in kwargs:  # user specified Outputter, not supported for fast reading
         fast_reader_param = False
     format = kwargs.get('format')
     new_kwargs.update(kwargs)
@@ -517,6 +517,7 @@ def _guess(table, read_kwargs, format, fast_reader):
             lines.extend(msg)
             raise core.InconsistentTableError('\n'.join(lines))
 
+
 def _get_guess_kwargs_list(read_kwargs):
     """
     Get the full list of reader keyword argument dicts that are the basis
@@ -593,6 +594,7 @@ def _get_guess_kwargs_list(read_kwargs):
 
     return guess_kwargs_list
 
+
 extra_writer_pars = ('delimiter', 'comment', 'quotechar', 'formats',
                      'names', 'include_names', 'exclude_names', 'strip_whitespace')
 
@@ -651,7 +653,7 @@ def get_writer(Writer=None, fast_writer=True, **kwargs):
     return writer
 
 
-def write(table, output=None,  format=None, Writer=None, fast_writer=True, **kwargs):
+def write(table, output=None, format=None, Writer=None, fast_writer=True, **kwargs):
     """Write the input ``table`` to ``filename``.  Most of the default behavior
     for various parameters is determined by the Writer class.
 
@@ -708,7 +710,8 @@ def write(table, output=None,  format=None, Writer=None, fast_writer=True, **kwa
     if output is None:
         output = sys.stdout
 
-    table = Table(table, names=kwargs.get('names'))
+    table_cls = table.__class__ if isinstance(table, Table) else Table
+    table = table_cls(table, names=kwargs.get('names'))
 
     table0 = table[:0].copy()
     core._apply_include_exclude_names(table0, kwargs.get('names'),
@@ -741,6 +744,7 @@ def write(table, output=None,  format=None, Writer=None, fast_writer=True, **kwa
     else:
         output.write(outstr)
         output.write(os.linesep)
+
 
 def get_read_trace():
     """

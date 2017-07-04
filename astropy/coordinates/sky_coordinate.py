@@ -1,9 +1,9 @@
 from __future__ import (absolute_import, division, print_function, unicode_literals)
 
-import copy
 import re
-import collections
+import copy
 import warnings
+import collections
 
 import numpy as np
 
@@ -14,13 +14,13 @@ from ..units import Unit, IrreducibleUnit
 from .. import units as u
 from ..wcs.utils import skycoord_to_pixel, pixel_to_skycoord
 from ..utils.exceptions import AstropyDeprecationWarning
-from ..utils.data_info import MixinInfo, _get_obj_attrs_map
+from ..utils.data_info import MixinInfo
 from ..utils import ShapedLikeNDArray
 
 from .distances import Distance
 from .angles import Angle
 from .baseframe import BaseCoordinateFrame, frame_transform_graph, GenericFrame, _get_repr_cls
-from .builtin_frames import ICRS, SkyOffsetFrame
+from .builtin_frames import ICRS, GCRS, SkyOffsetFrame
 from .representation import (BaseRepresentation, SphericalRepresentation,
                              UnitSphericalRepresentation)
 
@@ -32,6 +32,7 @@ J_PREFIXED_RA_DEC_RE = re.compile(
     ([0-9]{6,7}\.?[0-9]{0,2})          # RA as HHMMSS.ss or DDDMMSS.ss, optional decimal digits
     ([\+\-][0-9]{6}\.?[0-9]{0,2})\s*$  # Dec as DDMMSS.ss, optional decimal digits
     """, re.VERBOSE)
+
 
 class SkyCoordInfo(MixinInfo):
     """
@@ -71,16 +72,22 @@ class SkyCoordInfo(MixinInfo):
 
     def _represent_as_dict(self):
         obj = self._parent
-        attrs = list(obj.representation_component_names)
-        attrs += list(frame_transform_graph.frame_attributes.keys())
-        out = _get_obj_attrs_map(obj, attrs)
+        attrs = (list(obj.representation_component_names) +
+                 list(frame_transform_graph.frame_attributes.keys()))
 
         # Don't output distance if it is all unitless 1.0
-        if 'distance' in out and np.all(out['distance'] == 1.0):
-            del out['distance']
+        if 'distance' in attrs and np.all(obj.distance == 1.0):
+            attrs.remove('distance')
+
+        self._represent_as_dict_attrs = attrs
+
+        out = super(SkyCoordInfo, self)._represent_as_dict()
 
         out['representation'] = obj.representation.get_name()
         out['frame'] = obj.frame.name
+        # Note that obj.info.unit is a fake composite unit (e.g. 'deg,deg,None'
+        # or None,None,m) and is not stored.  The individual attributes have
+        # units.
 
         return out
 
@@ -189,7 +196,6 @@ class SkyCoord(ShapedLikeNDArray):
     # Declare that SkyCoord can be used as a Table column by defining the
     # info property.
     info = SkyCoordInfo()
-
 
     def __init__(self, *args, **kwargs):
 
@@ -331,6 +337,17 @@ class SkyCoord(ShapedLikeNDArray):
 
         # Error if anything is still left in kwargs
         if kwargs:
+
+            # TODO: remove this when velocities are supported in SkyCoord
+            vel_url = 'http://docs.astropy.org/en/stable/coordinates/velocities.html'
+            for k in kwargs:
+                if k.startswith('pm_') or k == 'radial_velocity':
+                    raise ValueError('Velocity data is currently only supported'
+                                     ' in the coordinate frame objects, not in '
+                                     'SkyCoord. See the velocities '
+                                     'documentation page for more information: '
+                                     '{0}'.format(vel_url))
+
             raise ValueError('Unrecognized keyword argument(s) {0}'
                              .format(', '.join("'{0}'".format(key) for key in kwargs)))
 
@@ -689,7 +706,7 @@ class SkyCoord(ShapedLikeNDArray):
                     return False
             return True
         else:
-            #not a BaseCoordinateFrame nor a SkyCoord object
+            # not a BaseCoordinateFrame nor a SkyCoord object
             raise TypeError("Tried to do is_equivalent_frame on something that "
                             "isn't frame-like")
 
@@ -1225,6 +1242,119 @@ class SkyCoord(ShapedLikeNDArray):
         """
         return pixel_to_skycoord(xp, yp, wcs=wcs, origin=origin, mode=mode, cls=cls)
 
+    def radial_velocity_correction(self, kind='barycentric', obstime=None,
+                                   location=None):
+        """
+        Compute the correction required to convert a radial velocity at a given
+        time and place on the Earth's Surface to a barycentric or heliocentric
+        velocity.
+
+        Parameters
+        ----------
+        kind : str
+            The kind of velocity correction.  Must be 'barycentric' or
+            'heliocentric'.
+        obstime : `~astropy.time.Time` or None, optional
+            The time at which to compute the correction.  If `None`, the
+            ``obstime`` frame attribute on the `SkyCoord` will be used.
+        location : `~astropy.coordinates.EarthLocation` or None, optional
+            The observer location at which to compute the correction.  If
+            `None`, the  ``location`` frame attribute on the passed-in
+            ``obstime`` will be used, and if that is None, the ``location``
+            frame attribute on the `SkyCoord` will be used.
+
+        Raises
+        ------
+        ValueError
+            If either ``obstime`` or ``location`` are passed in (not ``None``)
+            when the frame attribute is already set on this `SkyCoord`.
+        TypeError
+            If ``obstime`` or ``location`` aren't provided, either as arguments
+            or as frame attributes.
+
+        Returns
+        -------
+        vcorr : `~astropy.units.Quantity` with velocity units
+            The  correction with a positive sign.  I.e., *add* this
+            to an observed radial velocity to get the heliocentric velocity.
+
+        Notes
+        -----
+        The algorithm here is sufficient to perform corrections at the ~1 to
+        10 m/s level, but has not been validated at better precision.  Future
+        versions of Astropy will likely aim to improve this.
+
+        The default is for this method to use the builtin ephemeris for
+        computing the sun and earth location.  Other ephemerides can be chosen
+        by setting the `~astropy.coordinates.solar_system_ephemeris` variable,
+        either directly or via ``with`` statement.  For example, to use the JPL
+        ephemeris, do::
+
+            sc = SkyCoord(1*u.deg, 2*u.deg)
+            with coord.solar_system_ephemeris.set('jpl'):
+                rv += sc.rv_correction(obstime=t, location=loc)
+
+        """
+        # has to be here to prevent circular imports
+        from .solar_system import get_body_barycentric_posvel
+
+        # location validation
+        timeloc = getattr(obstime, 'location', None)
+        if location is None:
+            if self.location is not None:
+                location = self.location
+                if timeloc is not None:
+                    raise ValueError('`location` cannot be in both the '
+                                     'passed-in `obstime` and this `SkyCoord` '
+                                     'because it is ambiguous which is meant '
+                                     'for the radial_velocity_correction.')
+            elif timeloc is not None:
+                location = timeloc
+            else:
+                raise TypeError('Must provide a `location` to '
+                                'radial_velocity_correction, either as a '
+                                'SkyCoord frame attribute, as an attribute on '
+                                'the passed in `obstime`, or in the method '
+                                'call.')
+
+        elif self.location is not None or timeloc is not None:
+            raise ValueError('Cannot compute radial velocity correction if '
+                             '`location` argument is passed in and there is '
+                             'also a  `location` attribute on this SkyCoord or '
+                             'the passed-in `obstime`.')
+
+        # obstime validation
+        if obstime is None:
+            obstime = self.obstime
+            if obstime is None:
+                raise TypeError('Must provide an `obstime` to '
+                                'radial_velocity_correction, either as a '
+                                'SkyCoord frame attribute or in the method '
+                                'call.')
+        elif self.obstime is not None:
+            raise ValueError('Cannot compute radial velocity correction if '
+                             '`obstime` argument is passed in and it is '
+                             'inconsistent with the `obstime` frame '
+                             'attribute on the SkyCoord')
+
+        if kind == 'barycentric':
+            v_origin_to_earth = get_body_barycentric_posvel('earth', obstime)[1]
+        elif kind == 'heliocentric':
+            v_sun = get_body_barycentric_posvel('sun', obstime)[1]
+            v_earth = get_body_barycentric_posvel('earth', obstime)[1]
+            v_origin_to_earth = v_earth - v_sun
+        else:
+            raise ValueError("`kind` argument to radial_velocity_correction must "
+                             "be 'barycentric' or 'heliocentric', but got "
+                             "'{}'".format(kind))
+
+        gcrs_p, gcrs_v = location.get_gcrs_posvel(obstime)
+        gtarg = self.transform_to(GCRS(obstime=obstime,
+                                       obsgeoloc=gcrs_p,
+                                       obsgeovel=gcrs_v))
+        targcart = gtarg.represent_as(UnitSphericalRepresentation).to_cartesian()
+        return targcart.dot(v_origin_to_earth + gcrs_v)
+
     # Table interactions
     @classmethod
     def guess_from_table(cls, table, **coord_kwargs):
@@ -1249,7 +1379,7 @@ class SkyCoord(ShapedLikeNDArray):
         The definition of alphanumeric here is based on Unicode's definition
         of alphanumeric, except without ``_`` (which is normally considered
         alphanumeric).  So for ASCII, this means the non-alphanumeric characters
-        are ``<space>_!"#$%&'()*+,-./:;<=>?@[\]^`{|}~``).
+        are ``<space>_!"#$%&'()*+,-./\:;<=>?@[]^`{|}~``).
 
         Parameters
         ----------
@@ -1277,8 +1407,8 @@ class SkyCoord(ShapedLikeNDArray):
             # this part matches stuff like 'center_ra', but *not*
             # 'aura'
             ends_with_comp = r'.*(\W|\b|_)' + comp_name + r'\b'
-            #the final regex ORs together the two patterns
-            rex = re.compile('(' +starts_with_comp + ')|(' + ends_with_comp + ')',
+            # the final regex ORs together the two patterns
+            rex = re.compile('(' + starts_with_comp + ')|(' + ends_with_comp + ')',
                              re.IGNORECASE | re.UNICODE)
 
             for col_name in table.colnames:
@@ -1578,7 +1708,7 @@ def _parse_coordinate_arg(coords, frame, units, init_kwargs):
             values = []
             for data_attr_name, repr_attr_name in zip(frame_attr_names, repr_attr_names):
                 if allunitsphrepr and repr_attr_name == 'distance':
-                    #if they are *all* UnitSpherical, don't give a distance
+                    # if they are *all* UnitSpherical, don't give a distance
                     continue
                 data_vals = []
                 for sc in scs:
@@ -1590,8 +1720,8 @@ def _parse_coordinate_arg(coords, frame, units, init_kwargs):
                     concat_vals._unit = data_val.unit
                 values.append(concat_vals)
         else:
-            #none of the elements are "frame-like"
-            #turn into a list of lists like [[v1_0, v2_0, v3_0], ... [v1_N, v2_N, v3_N]]
+            # none of the elements are "frame-like"
+            # turn into a list of lists like [[v1_0, v2_0, v3_0], ... [v1_N, v2_N, v3_N]]
             for coord in coords:
                 if isinstance(coord, six.string_types):
                     coord1 = coord.split()

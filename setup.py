@@ -23,7 +23,7 @@ import astropy
 NAME = 'astropy'
 
 # VERSION should be PEP386 compatible (http://www.python.org/dev/peps/pep-0386)
-VERSION = '2.0.dev'
+VERSION = '3.0.dev'
 
 # Indicates if this version is a release version
 RELEASE = 'dev' not in VERSION
@@ -57,12 +57,13 @@ entry_points['console_scripts'] = [
     'fitsdiff = astropy.io.fits.scripts.fitsdiff:main',
     'fitsheader = astropy.io.fits.scripts.fitsheader:main',
     'fitsinfo = astropy.io.fits.scripts.fitsinfo:main',
-    'samp_hub = astropy.vo.samp.hub_script:hub_script',
+    'samp_hub = astropy.samp.hub_script:hub_script',
     'volint = astropy.io.votable.volint:main',
     'wcslint = astropy.wcs.wcslint:main',
 ]
 
-setup_requires = ['numpy>=' + astropy.__minimum_numpy_version__]
+setup_requires = ['numpy>=' + astropy.__minimum_numpy_version__,
+                  'cython>=0.21', 'jinja2>=2.7']
 install_requires = ['pytest>=2.8', 'numpy>=' + astropy.__minimum_numpy_version__]
 # Avoid installing setup_requires dependencies if the user just
 # queries for information

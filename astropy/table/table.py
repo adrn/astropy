@@ -16,7 +16,7 @@ from numpy import ma
 
 from .. import log
 from ..io import registry as io_registry
-from ..units import Quantity
+from ..units import Quantity, QuantityInfo
 from ..utils import isiterable, ShapedLikeNDArray
 from ..utils.compat.numpy import broadcast_to as np_broadcast_to
 from ..utils.console import color_print
@@ -51,7 +51,6 @@ class TableReplaceWarning(UserWarning):
 
 
 def descr(col):
-
     """Array-interface compliant full description of a column.
 
     This returns a 3-tuple (name, type, shape) that can always be
@@ -184,6 +183,7 @@ class TableColumns(OrderedDict):
         cols = [col for col in self.values() if not isinstance(col, cls)]
         return cols
 
+
 class Table(object):
     """A class to represent tables of heterogeneous data.
 
@@ -290,8 +290,8 @@ class Table(object):
         self.columns = self.TableColumns()
         self.meta = meta
         self.formatter = self.TableFormatter()
-        self._copy_indices = True # copy indices from this Table by default
-        self._init_indices = copy_indices # whether to copy indices in init
+        self._copy_indices = True  # copy indices from this Table by default
+        self._init_indices = copy_indices  # whether to copy indices in init
         self.primary_key = None
 
         # Must copy if dtype are changing
@@ -485,7 +485,7 @@ class Table(object):
         lst = []
         for column in self.columns.values():
             for index in column.info.indices:
-                if sum([index is x for x in lst]) == 0: # ensure uniqueness
+                if sum([index is x for x in lst]) == 0:  # ensure uniqueness
                     lst.append(index)
         return TableIndices(lst)
 
@@ -657,8 +657,10 @@ class Table(object):
         def_names = _auto_names(n_cols)
 
         for col, name, def_name, dtype in zip(data, names, def_names, dtype):
-            # Structured ndarray gets viewed as a mixin
-            if isinstance(col, np.ndarray) and len(col.dtype) > 1:
+            # Structured ndarray gets viewed as a mixin unless already a valid
+            # mixin class
+            if (isinstance(col, np.ndarray) and len(col.dtype) > 1 and
+                    not self._add_as_mixin_column(col)):
                 col = col.view(NdarrayMixin)
 
             if isinstance(col, (Column, MaskedColumn)):
@@ -900,7 +902,7 @@ class Table(object):
 
         # Is it a mixin but not not Quantity (which gets converted to Column with
         # unit set).
-        return has_info_class(col, MixinInfo) and not isinstance(col, Quantity)
+        return has_info_class(col, MixinInfo) and not has_info_class(col, QuantityInfo)
 
     def pprint(self, max_lines=None, max_width=None, show_name=True,
                show_unit=None, show_dtype=False, align=None):
@@ -1033,7 +1035,6 @@ class Table(object):
                         browser='default', jskwargs={'use_local_files': True},
                         tableid=None, table_class="display compact",
                         css=None, show_row_index='idx'):
-
         """Render the table in HTML and show it in a web browser.
 
         Parameters
@@ -1264,8 +1265,10 @@ class Table(object):
             if not hasattr(value, 'dtype') and not self._add_as_mixin_column(value):
                 value = np.asarray(value)
 
-            # Structured ndarray gets viewed as a mixin
-            if isinstance(value, np.ndarray) and len(value.dtype) > 1:
+            # Structured ndarray gets viewed as a mixin (unless already a valid
+            # mixin class).
+            if (isinstance(value, np.ndarray) and len(value.dtype) > 1 and
+                    not self._add_as_mixin_column(value)):
                 value = value.view(NdarrayMixin)
 
             # Make new column and assign the value.  If the table currently
@@ -1987,7 +1990,6 @@ class Table(object):
         for name in names:
             self.columns.pop(name)
 
-
     def _convert_string_dtype(self, in_kind, out_kind, python3_only):
         """
         Convert string-like columns to/from bytestring and unicode (internal only).
@@ -2467,7 +2469,6 @@ class Table(object):
             # now relabel the sort index appropriately
             sort_index.sort()
 
-
     def reverse(self):
         '''
         Reverse the row order of table rows.  The table is reversed
@@ -2517,7 +2518,19 @@ class Table(object):
         The arguments and keywords (other than ``format``) provided to this function are
         passed through to the underlying data reader (e.g. `~astropy.io.ascii.read`).
         """
-        return io_registry.read(cls, *args, **kwargs)
+        out = io_registry.read(cls, *args, **kwargs)
+        # For some readers (e.g., ascii.ecsv), the returned `out` class is not
+        # guaranteed to be the same as the desired output `cls`.  If so,
+        # try coercing to desired class without copying (io.registry.read
+        # would normally do a copy).  The normal case here is swapping
+        # Table <=> QTable.
+        if cls is not out.__class__:
+            try:
+                out = cls(out, copy=False)
+            except Exception:
+                raise TypeError('could not convert reader output to {0} '
+                                'class.'.format(cls.__name__))
+        return out
 
     def write(self, *args, **kwargs):
         """
@@ -2778,6 +2791,7 @@ class QTable(Table):
         Additional keyword args when converting table-like object.
 
     """
+
     def _add_as_mixin_column(self, col):
         """
         Determine if ``col`` should be added to the table directly as
@@ -2797,6 +2811,7 @@ class QTable(Table):
             col = super(QTable, self)._convert_col_for_table(col)
 
         return col
+
 
 class NdarrayMixin(np.ndarray):
     """

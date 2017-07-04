@@ -12,7 +12,7 @@ import numpy as np
 from ....coordinates import SkyCoord, EarthLocation, Angle, Longitude, Latitude
 from .... import units as u
 from ....time import Time
-from ....table import QTable
+from ....table import QTable, SerializedColumn
 from ....extern.six.moves import StringIO
 
 try:
@@ -89,7 +89,7 @@ def compare_coord(c, cy):
 @pytest.mark.parametrize('frame', ['fk4', 'altaz'])
 def test_skycoord(frame):
 
-    c = SkyCoord([[1,2],[3,4]], [[5,6], [7,8]],
+    c = SkyCoord([[1, 2], [3, 4]], [[5, 6], [7, 8]],
                  unit='deg', frame=frame,
                  obstime=Time('2016-01-02'),
                  location=EarthLocation(1000, 2000, 3000, unit=u.km))
@@ -98,7 +98,7 @@ def test_skycoord(frame):
 
 
 def _get_time():
-    t = Time([[1],[2]], format='cxcsec',
+    t = Time([[1], [2]], format='cxcsec',
              location=EarthLocation(1000, 2000, 3000, unit=u.km))
     t.format = 'iso'
     t.precision = 5
@@ -133,10 +133,17 @@ def test_timedelta():
         assert np.all(getattr(dt, attr) == getattr(dty, attr))
 
 
+def test_serialized_column():
+    sc = SerializedColumn({'name': 'hello', 'other': 1, 'other2': 2.0})
+    scy = load(dump(sc))
+
+    assert sc == scy
+
+
 def test_load_all():
     t = _get_time()
     unit = u.m / u.s
-    c = SkyCoord([[1,2],[3,4]], [[5,6], [7,8]],
+    c = SkyCoord([[1, 2], [3, 4]], [[5, 6], [7, 8]],
                  unit='deg', frame='fk4',
                  obstime=Time('2016-01-02'),
                  location=EarthLocation(1000, 2000, 3000, unit=u.km))
@@ -160,7 +167,7 @@ def test_ecsv_astropy_objects_in_meta():
     """
     t = QTable([[1, 2] * u.m, [4, 5]], names=['a', 'b'])
     tm = _get_time()
-    c = SkyCoord([[1,2],[3,4]], [[5,6], [7,8]],
+    c = SkyCoord([[1, 2], [3, 4]], [[5, 6], [7, 8]],
                  unit='deg', frame='fk4',
                  obstime=Time('2016-01-02'),
                  location=EarthLocation(1000, 2000, 3000, unit=u.km))

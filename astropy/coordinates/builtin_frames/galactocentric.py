@@ -28,6 +28,7 @@ from .icrs import ICRS
 # prevent having to create new Angle objects every time `get_roll0` is called.
 _ROLL0 = Angle(58.5986320306*u.degree)
 
+
 class Galactocentric(BaseCoordinateFrame):
     r"""
     A coordinate or frame in the Galactocentric system. This frame
@@ -126,7 +127,7 @@ class Galactocentric(BaseCoordinateFrame):
         ...                distance=[11.5, 24.12] * u.kpc)
         >>> c.transform_to(coord.Galactocentric) # doctest: +FLOAT_CMP
         <Galactocentric Coordinate (galcen_coord=<ICRS Coordinate: (ra, dec) in deg
-            ( 266.4051, -28.936175)>, galcen_distance=8.3 kpc, galcen_v_sun=(-11.1,  244.,  7.25) km / s, z_sun=27.0 pc, roll=0.0 deg): (x, y, z) in kpc
+            ( 266.4051, -28.936175)>, galcen_distance=8.3 kpc, galcen_v_sun=( 11.1,  232.24,  7.25) km / s, z_sun=27.0 pc, roll=0.0 deg): (x, y, z) in kpc
             [( -9.6083819 ,  -9.40062188,  6.52056066),
              (-21.28302307,  18.76334013,  7.84693855)]>
 
@@ -135,7 +136,7 @@ class Galactocentric(BaseCoordinateFrame):
 
         >>> c.transform_to(coord.Galactocentric(galcen_distance=8.1*u.kpc)) # doctest: +FLOAT_CMP
         <Galactocentric Coordinate (galcen_coord=<ICRS Coordinate: (ra, dec) in deg
-            ( 266.4051, -28.936175)>, galcen_distance=8.1 kpc, galcen_v_sun=(-11.1,  244.,  7.25) km / s, z_sun=27.0 pc, roll=0.0 deg): (x, y, z) in kpc
+            ( 266.4051, -28.936175)>, galcen_distance=8.1 kpc, galcen_v_sun=( 11.1,  232.24,  7.25) km / s, z_sun=27.0 pc, roll=0.0 deg): (x, y, z) in kpc
             [( -9.40785924,  -9.40062188,  6.52066574),
              (-21.08239383,  18.76334013,  7.84798135)]>
 
@@ -179,7 +180,7 @@ class Galactocentric(BaseCoordinateFrame):
     galcen_distance = QuantityFrameAttribute(default=8.3*u.kpc)
 
     galcen_v_sun = DifferentialFrameAttribute(
-        default=r.CartesianDifferential([-11.1, 244, 7.25] * u.km/u.s),
+        default=r.CartesianDifferential([11.1, 220+12.24, 7.25] * u.km/u.s),
         allowed_classes=[r.CartesianDifferential])
 
     z_sun = FrameAttribute(default=27.*u.pc)
@@ -227,6 +228,8 @@ class Galactocentric(BaseCoordinateFrame):
         return _ROLL0
 
 # ICRS to/from Galactocentric ----------------------->
+
+
 def get_matrix_vectors(galactocentric_frame, inverse=False):
     """
     Use the ``inverse`` argument to get the inverse transformation, matrix and
@@ -271,6 +274,7 @@ def get_matrix_vectors(galactocentric_frame, inverse=False):
 
     return A, offset
 
+
 def _check_coord_repr_diff_types(c):
     if isinstance(c.data, r.UnitSphericalRepresentation):
         raise ConvertError("Transforming to/from a Galactocentric frame "
@@ -286,10 +290,12 @@ def _check_coord_repr_diff_types(c):
                            "requires a 3D velocity, e.g., proper motion "
                            "components and radial velocity.")
 
+
 @frame_transform_graph.transform(AffineTransform, ICRS, Galactocentric)
 def icrs_to_galactocentric(icrs_coord, galactocentric_frame):
     _check_coord_repr_diff_types(icrs_coord)
     return get_matrix_vectors(galactocentric_frame)
+
 
 @frame_transform_graph.transform(AffineTransform, Galactocentric, ICRS)
 def galactocentric_to_icrs(galactocentric_coord, icrs_frame):

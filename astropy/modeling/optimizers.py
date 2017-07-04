@@ -20,7 +20,7 @@ DEFAULT_MAXITER = 100
 # Step for the forward difference approximation of the Jacobian
 DEFAULT_EPS = np.sqrt(np.finfo(float).eps)
 
-#Default requested accuracy
+# Default requested accuracy
 DEFAULT_ACC = 1e-07
 
 DEFAULT_BOUNDS = (-10 ** 12, 10 ** 12)
@@ -151,7 +151,7 @@ class SLSQP(Optimization):
         bounds = np.asarray(bounds)
         for i in bounds:
             if i[0] is None:
-                i[0] =  DEFAULT_BOUNDS[0]
+                i[0] = DEFAULT_BOUNDS[0]
             if i[1] is None:
                 i[1] = DEFAULT_BOUNDS[1]
         # older versions of scipy require this array to be float
@@ -178,13 +178,15 @@ class SLSQP(Optimization):
 
 class Simplex(Optimization):
     """
-    Neald-Mead (downhill simplex) algorithm [1].
+    Neald-Mead (downhill simplex) algorithm.
 
-    This algorithm only uses function values, not derivatives.
+    This algorithm [1]_ only uses function values, not derivatives.
     Uses `scipy.optimize.fmin`.
 
+    References
+    ----------
     .. [1] Nelder, J.A. and Mead, R. (1965), "A simplex method for function
-           minimization", The Computer Journal, 7, pp. 308-313
+       minimization", The Computer Journal, 7, pp. 308-313
     """
 
     supported_constraints = ['bounds', 'fixed', 'tied']

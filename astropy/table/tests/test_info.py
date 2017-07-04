@@ -15,6 +15,7 @@ from ... import coordinates
 from ... import table
 from ...utils.data_info import data_info_factory, dtype_info_name
 from ..table_helpers import simple_table
+import pytest
 
 
 def test_table_info_attributes(table_types):
@@ -40,9 +41,9 @@ def test_table_info_attributes(table_types):
     t['d'] = [1, 2, 3] * u.m
     t['d'].description = 'quantity'
     t['a'].format = '%02d'
-    t['e'] = time.Time([1,2,3], format='mjd')
+    t['e'] = time.Time([1, 2, 3], format='mjd')
     t['e'].info.description = 'time'
-    t['f'] = coordinates.SkyCoord([1,2,3], [1,2,3], unit='deg')
+    t['f'] = coordinates.SkyCoord([1, 2, 3], [1, 2, 3], unit='deg')
     t['f'].info.description = 'skycoord'
 
     tinfo = t.info(out=None)
@@ -59,6 +60,7 @@ def test_table_info_attributes(table_types):
     out = StringIO()
     t.info(out=out)
     assert repr(t.info) == out.getvalue()
+
 
 def test_table_info_stats(table_types):
     """
@@ -116,6 +118,7 @@ def test_table_info_stats(table_types):
     assert np.all(tinfo['sum'] == ['6', '6.0', '--', '--'])
     assert np.all(tinfo['first'] == ['1', '1.0', 'a', '1.0'])
 
+
 def test_data_info():
     """
     Test getting info for just a column.
@@ -162,6 +165,7 @@ def test_data_info():
                                      ('max', '2.0'),
                                      ('n_bad', 1),
                                      ('length', 3)])
+
 
 def test_data_info_subclass():
     class Column(table.Column):
@@ -241,3 +245,10 @@ def test_no_deprecation_warning():
     with warnings.catch_warnings(record=True) as warns:
         t.info()
         assert len(warns) == 0
+
+
+def test_lost_parent_error():
+    c = table.Column([1, 2, 3], name='a')
+    with pytest.raises(AttributeError) as err:
+        c[:].info.name
+    assert 'failed access "info" attribute' in str(err)

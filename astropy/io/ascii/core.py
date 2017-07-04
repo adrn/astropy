@@ -145,12 +145,15 @@ class MaskedConstant(numpy.ma.core.MaskedConstant):
     https://github.com/numpy/numpy/issues/4660), so we need to extend it
     here with a hash value.
     """
+
     def __hash__(self):
         '''All instances of this class shall have the same hash.'''
         # Any large number will do.
         return 1234567890
 
+
 masked = MaskedConstant()
+
 
 class InconsistentTableError(ValueError):
     """
@@ -159,6 +162,7 @@ class InconsistentTableError(ValueError):
     The default behavior of ``BaseReader`` is to throw an instance of
     this class if a data row doesn't match the header.
     """
+
 
 class OptionalTableImportError(ImportError):
     """
@@ -169,6 +173,7 @@ class OptionalTableImportError(ImportError):
     an ImportError.
     """
 
+
 class ParameterError(NotImplementedError):
     """
     Indicates that a reader cannot handle a passed parameter.
@@ -178,11 +183,13 @@ class ParameterError(NotImplementedError):
     C engine cannot handle.
     """
 
+
 class FastOptionsError(NotImplementedError):
     """
     Indicates that one of the specified options for fast
     reading is invalid.
     """
+
 
 class NoType(object):
     """
@@ -243,6 +250,7 @@ class Column(object):
     * **str_vals** : list of column values as strings
     * **data** : list of converted column values
     """
+
     def __init__(self, name):
         self.name = name
         self.type = NoType  # Generic type (Int, Float, Str etc)
@@ -392,7 +400,6 @@ class DefaultSplitter(BaseSplitter):
     csv_writer = None
     csv_writer_out = StringIO()
 
-
     def process_line(self, line):
         """Remove whitespace at the beginning or end of line.  This is especially useful for
         whitespace-delimited files to prevent spurious columns at the beginning or end.
@@ -400,7 +407,6 @@ class DefaultSplitter(BaseSplitter):
         if self.delimiter == r'\s':
             line = _replace_tab_with_space(line, self.escapechar, self.quotechar)
         return line.strip()
-
 
     def __call__(self, lines):
         """Return an iterator over the table ``lines``, where each iterator output
@@ -977,6 +983,8 @@ class TableOutputter(BaseOutputter):
                           convert_numpy(numpy.str)]
 
     def __call__(self, cols, meta):
+        # Sets col.data to numpy array and col.type to io.ascii Type class (e.g.
+        # FloatType) for each col.
         self._convert_vals(cols)
 
         # If there are any values that were filled and tagged with a mask bit then this
@@ -1031,6 +1039,7 @@ def _is_number(x):
         x = float(x)
         return True
     return False
+
 
 def _apply_include_exclude_names(table, names, include_names, exclude_names):
     """
@@ -1188,9 +1197,9 @@ class BaseReader(object):
                 col.str_vals.append(str_vals[j])
 
         self.data.masks(cols)
-        table = self.outputter(cols, self.meta)
         if hasattr(self.header, 'table_meta'):
-            table.meta.update(self.header.table_meta)
+            self.meta['table'].update(self.header.table_meta)
+        table = self.outputter(cols, self.meta)
         self.cols = self.header.cols
 
         _apply_include_exclude_names(table, self.names, self.include_names, self.exclude_names)
@@ -1237,6 +1246,26 @@ class BaseReader(object):
             comment_lines = []
         return comment_lines
 
+    def update_table_data(self, table):
+        """
+        Update table columns in place if needed.
+
+        This is a hook to allow updating the table columns after name
+        filtering but before setting up to write the data.  This is currently
+        only used by ECSV and is otherwise just a pass-through.
+
+        Parameters
+        ----------
+        table : `astropy.table.Table`
+            Input table for writing
+
+        Returns
+        -------
+        table : `astropy.table.Table`
+            Output table for writing
+        """
+        return table
+
     def write_header(self, lines, meta):
         self.header.write_comments(lines, meta)
         self.header.write(lines)
@@ -1261,7 +1290,15 @@ class BaseReader(object):
         self.header.cols = list(six.itervalues(table.columns))
         self.header.check_column_names(self.names, self.strict_names, False)
 
+        # In-place update of columns in input ``table`` to reflect column
+        # filtering.  Note that ``table`` is guaranteed to be a copy of the
+        # original user-supplied table.
         _apply_include_exclude_names(table, self.names, self.include_names, self.exclude_names)
+
+        # This is a hook to allow updating the table columns after name
+        # filtering but before setting up to write the data.  This is currently
+        # only used by ECSV and is otherwise just a pass-through.
+        table = self.update_table_data(table)
 
         # Now use altered columns
         new_cols = list(six.itervalues(table.columns))
@@ -1331,6 +1368,7 @@ class WhitespaceSplitter(DefaultSplitter):
 
         return ''.join(newline)
 
+
 extra_reader_pars = ('Reader', 'Inputter', 'Outputter',
                      'delimiter', 'comment', 'quotechar', 'header_start',
                      'data_start', 'data_end', 'converters', 'encoding',
@@ -1346,13 +1384,13 @@ def _get_reader(Reader, Inputter=None, Outputter=None, **kwargs):
     """
 
     from .fastbasic import FastBasic
-    if issubclass(Reader, FastBasic): # Fast readers handle args separately
+    if issubclass(Reader, FastBasic):  # Fast readers handle args separately
         if Inputter is not None:
             kwargs['Inputter'] = Inputter
         return Reader(**kwargs)
 
     if 'fast_reader' in kwargs:
-        del kwargs['fast_reader'] # ignore fast_reader parameter for slow readers
+        del kwargs['fast_reader']  # ignore fast_reader parameter for slow readers
     reader_kwargs = dict([k, v] for k, v in kwargs.items() if k not in extra_reader_pars)
     reader = Reader(**reader_kwargs)
 
@@ -1428,6 +1466,7 @@ def _get_reader(Reader, Inputter=None, Outputter=None, **kwargs):
 
     return reader
 
+
 extra_writer_pars = ('delimiter', 'comment', 'quotechar', 'formats',
                      'strip_whitespace',
                      'names', 'include_names', 'exclude_names',
@@ -1449,7 +1488,7 @@ def _get_writer(Writer, fast_writer, **kwargs):
     if 'fill_values' in kwargs and kwargs['fill_values'] is None:
         del kwargs['fill_values']
 
-    if issubclass(Writer, FastBasic): # Fast writers handle args separately
+    if issubclass(Writer, FastBasic):  # Fast writers handle args separately
         return Writer(**kwargs)
     elif fast_writer and 'fast_{0}'.format(Writer._format_name) in FAST_CLASSES:
         # Switch to fast writer

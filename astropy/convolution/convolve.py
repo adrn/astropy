@@ -6,6 +6,7 @@ from __future__ import (absolute_import, division, print_function,
 import warnings
 
 import numpy as np
+from functools import partial
 
 from .core import Kernel, Kernel1D, Kernel2D, MAX_NORMALIZATION
 from ..utils.exceptions import AstropyUserWarning
@@ -13,6 +14,8 @@ from ..utils.console import human_file_size
 from ..utils.decorators import deprecated_renamed_argument
 from .. import units as u
 from ..nddata import support_nddata
+from ..modeling.core import _make_arithmetic_operator, BINARY_OPERATORS
+from ..modeling.core import _CompoundModelMeta
 
 from ..extern.six.moves import range, zip
 
@@ -22,6 +25,7 @@ from ..extern.six.moves import range, zip
 __doctest_skip__ = ['*']
 
 BOUNDARY_OPTIONS = [None, 'fill', 'wrap', 'extend']
+
 
 @support_nddata(data='array')
 def convolve(array, kernel, boundary='fill', fill_value=0.,
@@ -500,7 +504,6 @@ def convolve_fft(array, kernel, boundary='fill', fill_value=0.,
     array([ 1.,  2.,  3.])
 
     """
-
     # Checking copied from convolve.py - however, since FFTs have real &
     # complex components, we change the types.  Only the real part will be
     # returned! Note that this always makes a copy.
@@ -564,7 +567,7 @@ def convolve_fft(array, kernel, boundary='fill', fill_value=0.,
                             .format(1. / MAX_NORMALIZATION))
         kernel_scale = kernel.sum()
         normalized_kernel = kernel / kernel_scale
-        kernel_scale = 1 # if we want to normalize it, leave it normed!
+        kernel_scale = 1  # if we want to normalize it, leave it normed!
     elif normalize_kernel:
         # try this.  If a function is not passed, the code will just crash... I
         # think type checking would be better but PEPs say otherwise...
@@ -618,8 +621,8 @@ def convolve_fft(array, kernel, boundary='fill', fill_value=0.,
 
     # find ideal size (power of 2) for fft.
     # Can add shapes because they are tuples
-    if fft_pad: # default=True
-        if psf_pad: # default=False
+    if fft_pad:  # default=True
+        if psf_pad:  # default=False
             # add the dimensions and then take the max (bigger)
             fsize = 2 ** np.ceil(np.log2(
                 np.max(np.array(arrayshape) + np.array(kernshape))))
@@ -650,7 +653,7 @@ def convolve_fft(array, kernel, boundary='fill', fill_value=0.,
     #         (kernel*array)fft +
     #         optional(weight image + weight_fft + weight_ifft) +
     #         optional(returned_fft))
-    #total_memory_used_GB = (np.product(newshape)*np.dtype(complex_dtype).itemsize
+    # total_memory_used_GB = (np.product(newshape)*np.dtype(complex_dtype).itemsize
     #                        * (5 + 3*((interpolate_nan or ) and kernel_is_normalized))
     #                        + (1 + (not return_fft)) *
     #                          np.product(arrayshape)*np.dtype(complex_dtype).itemsize
@@ -784,3 +787,37 @@ def interpolate_replace_nans(array, kernel, convolve=convolve, **kwargs):
     newarray[isnan] = convolved[isnan]
 
     return newarray
+
+
+def convolve_models(model, kernel, mode='convolve_fft', **kwargs):
+    """
+    Convolve two models using `~astropy.convolution.convolve_fft`.
+
+    Parameters
+    ----------
+    model : `~astropy.modeling.core.Model`
+        Functional model
+    kernel : `~astropy.modeling.core.Model`
+        Convolution kernel
+    mode : str
+        Keyword representing which function to use for convolution.
+            * 'convolve_fft' : use `~astropy.convolution.convolve_fft` function.
+            * 'convolve' : use `~astropy.convolution.convolve`.
+    kwargs : dict
+        Keyword arguments to me passed either to `~astropy.convolution.convolve`
+        or `~astropy.convolution.convolve_fft` depending on ``mode``.
+
+    Returns
+    -------
+    default : CompoundModel
+        Convolved model
+    """
+
+    if mode == 'convolve_fft':
+        BINARY_OPERATORS['convolve_fft'] = _make_arithmetic_operator(partial(convolve_fft, **kwargs))
+    elif mode == 'convolve':
+        BINARY_OPERATORS['convolve'] = _make_arithmetic_operator(partial(convolve, **kwargs))
+    else:
+        raise ValueError('Mode {} is not supported.'.format(mode))
+
+    return _CompoundModelMeta._from_operator(mode, model, kernel)

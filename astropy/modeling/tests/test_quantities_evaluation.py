@@ -12,7 +12,6 @@ from numpy.testing import assert_allclose
 
 
 from ..core import Model
-from ..parameters import Parameter
 from ..models import Gaussian1D
 from ... import units as u
 from ...units import UnitsError
@@ -86,10 +85,10 @@ def test_evaluate_with_quantities_and_equivalencies():
                              g(9.993081933333332 * u.nm))
 
 
-
 class MyTestModel(Model):
     inputs = ('a', 'b')
     outputs = ('f',)
+
     def evaluate(self, a, b):
         print('a', a)
         print('b', b)

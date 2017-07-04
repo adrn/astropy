@@ -544,6 +544,17 @@ class Shift(Fittable1DModel):
     offset = Parameter(default=0)
     linear = True
 
+    input_units_strict = True
+
+    input_units_allow_dimensionless = True
+
+    @property
+    def input_units(self):
+        if self.offset.unit is None:
+            return None
+        else:
+            return {'x': self.offset.unit}
+
     @property
     def inverse(self):
         """One dimensional inverse Shift model function"""
@@ -554,7 +565,14 @@ class Shift(Fittable1DModel):
     @staticmethod
     def evaluate(x, offset):
         """One dimensional Shift model function"""
-        return x + offset
+        if isinstance(offset, u.Quantity):
+            return_unit = offset.unit
+            offset = offset.value
+        if isinstance(x, u.Quantity):
+            x = x.value
+            return (x + offset) * return_unit
+        else:
+            return x + offset
 
     @staticmethod
     def sum_of_implicit_terms(x):
@@ -586,6 +604,17 @@ class Scale(Fittable1DModel):
     linear = True
     fittable = True
 
+    input_units_strict = True
+
+    input_units_allow_dimensionless = True
+
+    @property
+    def input_units(self):
+        if self.factor.unit is None:
+            return None
+        else:
+            return {'x': self.factor.unit}
+
     @property
     def inverse(self):
         """One dimensional inverse Scale model function"""
@@ -596,7 +625,13 @@ class Scale(Fittable1DModel):
     @staticmethod
     def evaluate(x, factor):
         """One dimensional Scale model function"""
-        return factor * x
+        if isinstance(factor, u.Quantity):
+            return_unit = factor.unit
+            factor = factor.value
+        if isinstance(x, u.Quantity):
+            return (x.value * factor) * return_unit
+        else:
+            return factor * x
 
     @staticmethod
     def fit_deriv(x, *params):
@@ -1457,7 +1492,6 @@ class Disk2D(Fittable2DModel):
         return ((self.y_0 - self.R_0, self.y_0 + self.R_0),
                 (self.x_0 - self.R_0, self.x_0 + self.R_0))
 
-
     @property
     def input_units(self):
         if self.x_0.unit is None and self.y_0.unit is None:
@@ -1584,6 +1618,7 @@ class Ring2D(Fittable2DModel):
                             ('r_in', inputs_unit['x']),
                             ('width', inputs_unit['x']),
                             ('amplitude', outputs_unit['z'])])
+
 
 class Delta1D(Fittable1DModel):
     """One dimensional Dirac delta function."""
@@ -1760,7 +1795,6 @@ class Box2D(Fittable2DModel):
             return Quantity(result, unit=amplitude.unit, copy=False)
         else:
             return result
-
 
     @property
     def bounding_box(self):
@@ -2054,7 +2088,6 @@ class MexicanHat1D(Fittable1DModel):
         return OrderedDict([('x_0', inputs_unit['x']),
                             ('sigma', inputs_unit['x']),
                             ('amplitude', outputs_unit['y'])])
-
 
 
 class MexicanHat2D(Fittable2DModel):
