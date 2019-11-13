@@ -221,8 +221,31 @@ def _encode_mixins(tbl):
     return encode_tbl
 
 
+def _custom_tbl_dtype_compare(dtype1, dtype2):
+    """This is a custom equality operator for comparing table data types that
+    is less strict about units when unit is missing in one and dimensionless in
+    the other.
+    """
+
+    for d1, d2 in zip(dtype1, dtype2):
+        for k in set(list(d1.keys()) + list(d2.keys())):
+            if k == 'unit':
+                if d1.get(k, '') != '' and k not in d2:
+                    return False
+                if d2.get(k, '') != '' and k not in d1:
+                    return False
+                if d1.get(k, '') != d2.get(k, ''):
+                    return False
+            else:
+                if d1.get(k, '1') != d2.get(k, '2'):
+                    return False
+
+    return True
+
+
 def write_table_hdf5(table, output, path=None, compression=False,
-                     append=False, overwrite=False, serialize_meta=False):
+                     append=False, overwrite=False, serialize_meta=False,
+                     metadata_conflicts='error', **create_dataset_kwargs):
     """
     Write a Table object to an HDF5 file
 
@@ -251,6 +274,14 @@ def write_table_hdf5(table, output, path=None, compression=False,
         Whether to overwrite any existing file without warning.
         If ``append=True`` and ``overwrite=True`` then only the dataset will be
         replaced; the file/group will not be overwritten.
+    metadata_conflicts : str
+        How to proceed with metadata conflicts. This should be one of:
+            * ``'silent'``: silently pick the last conflicting meta-data value
+            * ``'warn'``: pick the last conflicting meta-data value, but emit a
+              warning (default)
+            * ``'error'``: raise an exception.
+    **create_dataset_kwargs
+        Additional keyword arguments are passed to `h5py.File.create_dataset`.
     """
 
     from astropy.table import meta
@@ -303,7 +334,8 @@ def write_table_hdf5(table, output, path=None, compression=False,
             return write_table_hdf5(table, f, path=path,
                                     compression=compression, append=append,
                                     overwrite=overwrite,
-                                    serialize_meta=serialize_meta)
+                                    serialize_meta=serialize_meta,
+                                    **create_dataset_kwargs)
         finally:
             f.close()
 
@@ -313,10 +345,22 @@ def write_table_hdf5(table, output, path=None, compression=False,
                         'Group object')
 
     # Check whether table already exists
+    existing_header = None
     if name in output_group:
         if append and overwrite:
             # Delete only the dataset itself
             del output_group[name]
+        elif append:
+            # Data table exists, so we interpret "append" to mean "extend
+            # existing table with the table passed in". However, this requires
+            # the table to have been written by this function in the past, so it
+            # should have a metadata header
+            if meta_path(name) not in output_group:
+                raise ValueError("TODO: no metadata for existing table, can't append...")
+
+            # Load existing table header:
+            existing_header = get_header_from_yaml(
+                h.decode('utf-8') for h in output_group[meta_path(name)])
         else:
             raise OSError(f"Table {path} already exists")
 
@@ -342,36 +386,69 @@ def write_table_hdf5(table, output, path=None, compression=False,
                                   " be dropped since serialize_meta=False.",
                                   AstropyUserWarning)
 
-    # Write the table to the file
-    if compression:
-        if compression is True:
-            compression = 'gzip'
-        dset = output_group.create_dataset(name, data=table.as_array(),
-                                           compression=compression)
-    else:
-        dset = output_group.create_dataset(name, data=table.as_array())
+    if existing_header is None:  # Just write the table and metadata
+        # Write the table to the file
+        if compression:
+            if compression is True:
+                compression = 'gzip'
+            dset = output_group.create_dataset(name, data=table.as_array(),
+                                               compression=compression,
+                                               **create_dataset_kwargs)
+        else:
+            dset = output_group.create_dataset(name, data=table.as_array(),
+                                               **create_dataset_kwargs)
 
-    if serialize_meta:
-        header_yaml = meta.get_yaml_from_table(table)
+        if serialize_meta:
+            header_yaml = meta.get_yaml_from_table(table)
 
-        header_encoded = [h.encode('utf-8') for h in header_yaml]
-        output_group.create_dataset(meta_path(name),
-                                    data=header_encoded)
+            header_encoded = [h.encode('utf-8') for h in header_yaml]
+            output_group.create_dataset(meta_path(name),
+                                        data=header_encoded)
 
-    else:
-        # Write the Table meta dict key:value pairs to the file as HDF5
-        # attributes.  This works only for a limited set of scalar data types
-        # like numbers, strings, etc., but not any complex types.  This path
-        # also ignores column meta like unit or format.
-        for key in table.meta:
-            val = table.meta[key]
-            try:
-                dset.attrs[key] = val
-            except TypeError:
-                warnings.warn("Attribute `{}` of type {} cannot be written to "
-                              "HDF5 files - skipping. (Consider specifying "
-                              "serialize_meta=True to write all meta data)".format(key, type(val)),
-                              AstropyUserWarning)
+        else:
+            # Write the Table meta dict key:value pairs to the file as HDF5
+            # attributes.  This works only for a limited set of scalar data types
+            # like numbers, strings, etc., but not any complex types.  This path
+            # also ignores column meta like unit or format.
+            for key in table.meta:
+                val = table.meta[key]
+                try:
+                    dset.attrs[key] = val
+                except TypeError:
+                    warnings.warn("Attribute `{}` of type {} cannot be written to "
+                                  "HDF5 files - skipping. (Consider specifying "
+                                  "serialize_meta=True to write all meta data)"
+                                  .format(key, type(val)), AstropyUserWarning)
+
+    else:  # We need to append the tables!
+        try:
+            # TODO: do something with the merged metadata!
+            metadata.merge(existing_header['meta'],
+                           table.meta,
+                           metadata_conflicts=metadata_conflicts)
+        except metadata.MergeConflictError:
+            raise metadata.MergeConflictError(
+                "Cannot append table to existing file because "
+                "the existing file table metadata and this "
+                "table object's metadata do not match. If you "
+                "want to ignore this issue, or change to a "
+                "warning, set metadata_conflicts='silent' or 'warn'.")
+
+        # Now compare datatype of this object and on disk
+        this_header = get_header_from_yaml(get_yaml_from_table(table))
+
+        if not _custom_tbl_dtype_compare(existing_header['datatype'],
+                                         this_header['datatype']):
+            raise ValueError(
+                "Cannot append table to existing file because "
+                "the existing file table datatype and this "
+                "object's table datatype do not match. "
+                f"{existing_header['datatype']} vs. {this_header['datatype']}")
+
+        # If we got here, we can now try to append:
+        current_size = len(output_group[name])
+        output_group[name].resize((current_size + len(table), ))
+        output_group[name][current_size:] = table.as_array()
 
 
 def register_hdf5():
